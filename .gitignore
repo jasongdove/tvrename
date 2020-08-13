@@ -1,0 +1,9 @@
+/*/target/
+target/
+output/
+.DS_STORE
+.idea_modules
+.idea
+out/
+/.bloop/
+/.metals/
