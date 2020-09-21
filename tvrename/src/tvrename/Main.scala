@@ -13,9 +13,11 @@ object Main {
     config match {
       case Left(failures) => println(failures)
       case Right(config) => {
-        val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
-        val classifier: EpisodeClassifier = new EpisodeClassifierImpl(config)
+        val fileSystem: FileSystem = FileSystemImpl
         val logger: Logger = LoggerImpl
+
+        val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
+        val classifier: EpisodeClassifier = new EpisodeClassifierImpl(config, fileSystem)
         val coreLogic: CoreLogic = new CoreLogicImpl(config, tvdb, classifier, logger)
 
         coreLogic.run()

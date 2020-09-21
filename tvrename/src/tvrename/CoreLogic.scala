@@ -4,7 +4,8 @@ trait CoreLogic {
   def run(): Unit
 }
 
-class CoreLogicImpl(config: TVRenameConfig, tvdb: TVDB, classifier: EpisodeClassifier, logger: Logger) extends CoreLogic {
+class CoreLogicImpl(config: TVRenameConfig, tvdb: TVDB, classifier: EpisodeClassifier, logger: Logger)
+    extends CoreLogic {
   def run(): Unit = {
     val unknownEpisodes = classifier.findUnknownEpisodes()
     val episodesForSeason = tvdb.episodesForSeason(config.seriesId, config.seasonNumber)
@@ -14,7 +15,8 @@ class CoreLogicImpl(config: TVRenameConfig, tvdb: TVDB, classifier: EpisodeClass
       case episode @ aired(episodeNumber) =>
         val (originalName, newName) = classifier.renameEpisode(episode, config.seasonNumber, episodeNumber)
         logger.log(s"Moved $originalName to $newName")
-      case _ => ()
+      case episode =>
+        logger.log(s"Unable to find episode number for ${episode.fileName}")
     }
   }
 }
