@@ -3,6 +3,9 @@ package tvrename
 import pureconfig._
 import pureconfig.generic.auto._
 
+import tvrename.config._
+import tvrename.classifier._
+
 object Main {
   def main(args: Array[String]): Unit = {
     val configFolder =
@@ -28,6 +31,9 @@ object Main {
 
             coreLogic.run()
           }
+          // case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
+          //   val classifier: EpisodeClassifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
+          // }
         }
     }
   }

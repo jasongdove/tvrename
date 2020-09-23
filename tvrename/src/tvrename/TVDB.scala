@@ -1,5 +1,7 @@
 package tvrename
 
+import tvrename.config._
+
 import upickle.default
 
 case class Login(token: String)

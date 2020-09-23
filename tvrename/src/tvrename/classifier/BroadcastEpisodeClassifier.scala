@@ -1,13 +1,10 @@
-package tvrename
-
-import java.time.{Instant, LocalDate, ZoneId}
+package tvrename.classifier
 
 import scala.util.matching.Regex
+import java.time.{Instant, LocalDate, ZoneId}
 
-trait EpisodeClassifier {
-  def findUnknownEpisodes(): Seq[UnknownEpisode]
-  def renameEpisode(episode: UnknownEpisode, seasonNumber: SeasonNumber, episodeNumber: Int): (String, String)
-}
+import tvrename._
+import tvrename.config._
 
 class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSystem) extends EpisodeClassifier {
   def findUnknownEpisodes(): Seq[UnknownEpisode] = {
@@ -55,5 +52,3 @@ class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSys
     (sourceFile, targetFile)
   }
 }
-
-case class UnknownEpisode(fileName: String, date: LocalDate)

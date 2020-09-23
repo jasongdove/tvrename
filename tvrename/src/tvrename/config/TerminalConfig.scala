@@ -1,4 +1,4 @@
-package tvrename
+package tvrename.config
 
 import org.rogach.scallop._
 

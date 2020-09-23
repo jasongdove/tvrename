@@ -1,5 +1,8 @@
 package tvrename
 
+import tvrename.config._
+import tvrename.classifier._
+
 trait CoreLogic {
   def run(): Unit
 }

@@ -1,4 +1,4 @@
-package tvrename
+package tvrename.config
 
 case class ApiKey(value: String) extends AnyVal
 case class UserKey(value: String) extends AnyVal

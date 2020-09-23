@@ -1,4 +1,4 @@
-package tvrename
+package tvrename.config
 
 case class SeriesId(value: Int) extends AnyVal
 case class SeasonNumber(value: Int) extends AnyVal
@@ -10,6 +10,13 @@ sealed trait JobConfig {
 }
 
 case class BroadcastJobConfig(
+  mediaFolder: String,
+  template: String,
+  seriesId: SeriesId,
+  seasonNumber: SeasonNumber
+) extends JobConfig
+
+case class RemuxJobConfig(
   mediaFolder: String,
   template: String,
   seriesId: SeriesId,
