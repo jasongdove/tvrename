@@ -9,7 +9,7 @@ trait EpisodeClassifier {
   def renameEpisode(episode: UnknownEpisode, seasonNumber: SeasonNumber, episodeNumber: Int): (String, String)
 }
 
-class EpisodeClassifierImpl(config: JobConfig, fileSystem: FileSystem) extends EpisodeClassifier {
+class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSystem) extends EpisodeClassifier {
   def findUnknownEpisodes(): Seq[UnknownEpisode] = {
     val validExtensions = List(".mkv", ".ts")
     val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
@@ -39,12 +39,16 @@ class EpisodeClassifierImpl(config: JobConfig, fileSystem: FileSystem) extends E
   ): (String, String) = {
     val sourceFile = episode.fileName
 
+    val formattedSeason = f"${seasonNumber.value}%02d"
+    val formattedEpisode = f"${episodeNumber}%02d"
     val insertIndex = sourceFile.lastIndexOf('.')
-    val title = sourceFile.slice(0, insertIndex)
-    val seasonAndEpisode = f" - s${seasonNumber.value}%02de$episodeNumber%03d"
     val ext = sourceFile.substring(insertIndex)
+    val titleSeasonAndEpisode = config.template
+      .replace("[season]", formattedSeason)
+      .replace("[episode]", formattedEpisode)
 
-    val targetFile = title + seasonAndEpisode + ext
+    val newFileName = titleSeasonAndEpisode + ext
+    val targetFile = fileSystem.absoluteToRelative(newFileName, sourceFile)
 
     fileSystem.rename(sourceFile, targetFile)
 

@@ -4,6 +4,7 @@ trait FileSystem {
   def walk(path: String): IndexedSeq[String]
   def getModifyTime(path: String): Long
   def rename(source: String, dest: String): Unit
+  def absoluteToRelative(path: String, relativeTo: String): String
 }
 
 object FileSystemImpl extends FileSystem {
@@ -12,4 +13,7 @@ object FileSystemImpl extends FileSystem {
   override def getModifyTime(path: String): Long = os.mtime(os.Path(path))
 
   override def rename(source: String, dest: String): Unit = os.move(os.Path(source), os.Path(dest))
+
+  override def absoluteToRelative(path: String, relativeTo: String): String =
+    (os.Path(relativeTo) / os.up / os.RelPath(path)).toString
 }

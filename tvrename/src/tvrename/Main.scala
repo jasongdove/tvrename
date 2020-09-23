@@ -15,14 +15,15 @@ object Main {
       case terminalConfig.renameCommand =>
         val jobConfig = ConfigSource.file(terminalConfig.renameCommand.job()).load[JobConfig]
 
+        val fileSystem: FileSystem = FileSystemImpl
+        val logger: Logger = LoggerImpl
+
         (config, jobConfig) match {
           case (Left(failures), _) => println(failures)
           case (_, Left(failures)) => println(failures)
           case (Right(config), Right(jobConfig: BroadcastJobConfig)) => {
-            val fileSystem: FileSystem = FileSystemImpl
-            val logger: Logger = LoggerImpl
             val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
-            val classifier: EpisodeClassifier = new EpisodeClassifierImpl(jobConfig, fileSystem)
+            val classifier: EpisodeClassifier = new BroadcastEpisodeClassifier(jobConfig, fileSystem)
             val coreLogic: CoreLogic = new BroadcastCoreLogic(jobConfig, tvdb, classifier, logger)
 
             coreLogic.run()
