@@ -9,7 +9,7 @@ trait EpisodeClassifier {
   def renameEpisode(episode: UnknownEpisode, seasonNumber: SeasonNumber, episodeNumber: Int): (String, String)
 }
 
-class EpisodeClassifierImpl(config: TVRenameConfig, fileSystem: FileSystem) extends EpisodeClassifier {
+class EpisodeClassifierImpl(config: JobConfig, fileSystem: FileSystem) extends EpisodeClassifier {
   def findUnknownEpisodes(): Seq[UnknownEpisode] = {
     val validExtensions = List(".mkv", ".ts")
     val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
@@ -27,7 +27,7 @@ class EpisodeClassifierImpl(config: TVRenameConfig, fileSystem: FileSystem) exte
         .toLocalDate
 
     fileSystem
-      .walk(config.targetFolder)
+      .walk(config.mediaFolder)
       .filter(f => isValid(f) && isUnknown(f))
       .map(f => UnknownEpisode(f, dateBroadcasted(f)))
   }

@@ -4,7 +4,7 @@ trait CoreLogic {
   def run(): Unit
 }
 
-class CoreLogicImpl(config: TVRenameConfig, tvdb: TVDB, classifier: EpisodeClassifier, logger: Logger)
+class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: EpisodeClassifier, logger: Logger)
     extends CoreLogic {
   def run(): Unit = {
     val unknownEpisodes = classifier.findUnknownEpisodes()

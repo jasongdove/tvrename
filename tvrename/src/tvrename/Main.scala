@@ -10,18 +10,24 @@ object Main {
 
     val config = ConfigSource.file(s"$configFolder/tvrename.conf").load[TVRenameConfig]
 
-    config match {
-      case Left(failures) => println(failures)
-      case Right(config) => {
-        val fileSystem: FileSystem = FileSystemImpl
-        val logger: Logger = LoggerImpl
+    val terminalConfig = new TerminalConfig(args)
+    terminalConfig.subcommand map {
+      case terminalConfig.renameCommand =>
+        val jobConfig = ConfigSource.file(terminalConfig.renameCommand.job()).load[JobConfig]
 
-        val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
-        val classifier: EpisodeClassifier = new EpisodeClassifierImpl(config, fileSystem)
-        val coreLogic: CoreLogic = new CoreLogicImpl(config, tvdb, classifier, logger)
+        (config, jobConfig) match {
+          case (Left(failures), _) => println(failures)
+          case (_, Left(failures)) => println(failures)
+          case (Right(config), Right(jobConfig: BroadcastJobConfig)) => {
+            val fileSystem: FileSystem = FileSystemImpl
+            val logger: Logger = LoggerImpl
+            val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
+            val classifier: EpisodeClassifier = new EpisodeClassifierImpl(jobConfig, fileSystem)
+            val coreLogic: CoreLogic = new BroadcastCoreLogic(jobConfig, tvdb, classifier, logger)
 
-        coreLogic.run()
-      }
+            coreLogic.run()
+          }
+        }
     }
   }
 }

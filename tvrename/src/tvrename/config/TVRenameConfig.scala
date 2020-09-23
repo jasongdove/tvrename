@@ -1,7 +1,5 @@
 package tvrename
 
-case class SeriesId(value: Int) extends AnyVal
-case class SeasonNumber(value: Int) extends AnyVal
 case class ApiKey(value: String) extends AnyVal
 case class UserKey(value: String) extends AnyVal
 case class Username(value: String) extends AnyVal
@@ -13,8 +11,6 @@ case class TVDBConfig(
 )
 
 case class TVRenameConfig(
-  targetFolder: String,
-  seriesId: SeriesId,
-  seasonNumber: SeasonNumber,
+  cacheFolder: String,
   tvdbConfig: TVDBConfig
 )
