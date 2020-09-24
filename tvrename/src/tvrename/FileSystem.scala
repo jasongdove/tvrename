@@ -1,11 +1,15 @@
 package tvrename
 
+import os.copy.over
+
 trait FileSystem {
   def walk(path: String): IndexedSeq[String]
   def getModifyTime(path: String): Long
   def rename(source: String, dest: String): Unit
   def absoluteToRelative(path: String, relativeTo: String): String
   def makeDirs(path: String): Unit
+  def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String)
+  def exists(path: String): Boolean
 }
 
 object FileSystemImpl extends FileSystem {
@@ -19,4 +23,10 @@ object FileSystemImpl extends FileSystem {
     (os.Path(relativeTo) / os.up / os.RelPath(path)).toString
 
   override def makeDirs(path: String): Unit = os.makeDir.all(os.Path(path))
+
+  override def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String): Unit =
+    os.proc(command).call(stdin = stream, stdout = os.Path(targetFile))
+
+  override def exists(path: String): Boolean =
+    os.exists(os.Path(path))
 }

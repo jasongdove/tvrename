@@ -1,11 +1,8 @@
-package tvrename
+package tvrename.logic
 
-import tvrename.config._
+import tvrename._
+import tvrename.config.BroadcastJobConfig
 import tvrename.classifier._
-
-trait CoreLogic {
-  def run(): Unit
-}
 
 class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: BroadcastEpisodeClassifier, logger: Logger)
     extends CoreLogic {
@@ -29,11 +26,4 @@ class Aired(episodes: Seq[EpisodeData]) {
     episodes
       .find(_.firstAired == episode.date.toString)
       .map(_.airedEpisodeNumber)
-}
-
-class RemuxCoreLogic(config: RemuxJobConfig, classifier: RemuxEpisodeClassifier, logger: Logger) extends CoreLogic {
-  def run(): Unit = {
-    val unknownEpisodes = classifier.findUnknownEpisodes()
-    unknownEpisodes.foreach(println)
-  }
 }

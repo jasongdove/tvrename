@@ -20,6 +20,7 @@ case class RemuxJobConfig(
   mediaFolder: String,
   template: String,
   seriesId: SeriesId,
+  seriesName: String,
   seasonNumber: SeasonNumber
 ) extends JobConfig
 

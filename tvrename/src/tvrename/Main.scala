@@ -5,6 +5,8 @@ import pureconfig.generic.auto._
 
 import tvrename.config._
 import tvrename.classifier._
+import tvrename.logic._
+import tvrename.subtitles._
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -36,8 +38,10 @@ object Main {
           }
           case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
             //fileSystem.makeDirs(config.cacheFolder)
+            val subtitleDownloader: ReferenceSubtitleDownloader =
+              new ReferenceSubtitleDownloaderImpl(config, jobConfig, fileSystem, logger)
             val classifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
-            val coreLogic: CoreLogic = new RemuxCoreLogic(jobConfig, classifier, logger)
+            val coreLogic: CoreLogic = new RemuxCoreLogic(jobConfig, classifier, subtitleDownloader, logger)
             Some(coreLogic)
           }
         }
