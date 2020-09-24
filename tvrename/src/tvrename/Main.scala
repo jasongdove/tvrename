@@ -21,20 +21,28 @@ object Main {
         val fileSystem: FileSystem = FileSystemImpl
         val logger: Logger = LoggerImpl
 
-        (config, jobConfig) match {
-          case (Left(failures), _) => println(failures)
-          case (_, Left(failures)) => println(failures)
+        val coreLogic = (config, jobConfig) match {
+          case (Left(failures), _) =>
+            println(failures)
+            None
+          case (_, Left(failures)) =>
+            println(failures)
+            None
           case (Right(config), Right(jobConfig: BroadcastJobConfig)) => {
             val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
-            val classifier: EpisodeClassifier = new BroadcastEpisodeClassifier(jobConfig, fileSystem)
+            val classifier = new BroadcastEpisodeClassifier(jobConfig, fileSystem)
             val coreLogic: CoreLogic = new BroadcastCoreLogic(jobConfig, tvdb, classifier, logger)
-
-            coreLogic.run()
+            Some(coreLogic)
           }
-          // case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
-          //   val classifier: EpisodeClassifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
-          // }
+          case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
+            //fileSystem.makeDirs(config.cacheFolder)
+            val classifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
+            val coreLogic: CoreLogic = new RemuxCoreLogic(jobConfig, classifier, logger)
+            Some(coreLogic)
+          }
         }
+
+        coreLogic.map(_.run())
     }
   }
 }

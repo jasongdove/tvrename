@@ -5,6 +5,7 @@ trait FileSystem {
   def getModifyTime(path: String): Long
   def rename(source: String, dest: String): Unit
   def absoluteToRelative(path: String, relativeTo: String): String
+  def makeDirs(path: String): Unit
 }
 
 object FileSystemImpl extends FileSystem {
@@ -16,4 +17,6 @@ object FileSystemImpl extends FileSystem {
 
   override def absoluteToRelative(path: String, relativeTo: String): String =
     (os.Path(relativeTo) / os.up / os.RelPath(path)).toString
+
+  override def makeDirs(path: String): Unit = os.makeDir.all(os.Path(path))
 }

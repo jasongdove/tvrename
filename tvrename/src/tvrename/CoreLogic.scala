@@ -7,7 +7,7 @@ trait CoreLogic {
   def run(): Unit
 }
 
-class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: EpisodeClassifier, logger: Logger)
+class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: BroadcastEpisodeClassifier, logger: Logger)
     extends CoreLogic {
   def run(): Unit = {
     val unknownEpisodes = classifier.findUnknownEpisodes()
@@ -25,8 +25,15 @@ class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: Epi
 }
 
 class Aired(episodes: Seq[EpisodeData]) {
-  def unapply(episode: UnknownEpisode): Option[Int] =
+  def unapply(episode: UnknownBroadcastEpisode): Option[Int] =
     episodes
       .find(_.firstAired == episode.date.toString)
       .map(_.airedEpisodeNumber)
+}
+
+class RemuxCoreLogic(config: RemuxJobConfig, classifier: RemuxEpisodeClassifier, logger: Logger) extends CoreLogic {
+  def run(): Unit = {
+    val unknownEpisodes = classifier.findUnknownEpisodes()
+    unknownEpisodes.foreach(println)
+  }
 }

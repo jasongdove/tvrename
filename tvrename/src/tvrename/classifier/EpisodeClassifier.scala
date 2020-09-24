@@ -1,12 +1,32 @@
 package tvrename.classifier
 
-import java.time.LocalDate
-
+import tvrename._
 import tvrename.config._
 
-trait EpisodeClassifier {
-  def findUnknownEpisodes(): Seq[UnknownEpisode]
-  def renameEpisode(episode: UnknownEpisode, seasonNumber: SeasonNumber, episodeNumber: Int): (String, String)
-}
+trait UnknownEpisode { def fileName: String }
 
-case class UnknownEpisode(fileName: String, date: LocalDate)
+abstract case class EpisodeClassifier[A <: UnknownEpisode](config: JobConfig, fileSystem: FileSystem) {
+  def findUnknownEpisodes(): Seq[A]
+
+  def renameEpisode(
+    episode: A,
+    seasonNumber: SeasonNumber,
+    episodeNumber: Int
+  ): (String, String) = {
+    val sourceFile = episode.fileName
+
+    val formattedSeason = f"${seasonNumber.value}%02d"
+    val formattedEpisode = f"${episodeNumber}%02d"
+    val insertIndex = sourceFile.lastIndexOf('.')
+    val ext = sourceFile.substring(insertIndex)
+    val titleSeasonAndEpisode = config.template
+      .replace("[season]", formattedSeason)
+      .replace("[episode]", formattedEpisode)
+
+    val newFileName = titleSeasonAndEpisode + ext
+    val targetFile = fileSystem.absoluteToRelative(newFileName, sourceFile)
+
+    fileSystem.rename(sourceFile, targetFile)
+
+    (sourceFile, targetFile)
+  }}

@@ -6,8 +6,11 @@ import java.time.{Instant, LocalDate, ZoneId}
 import tvrename._
 import tvrename.config._
 
-class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSystem) extends EpisodeClassifier {
-  def findUnknownEpisodes(): Seq[UnknownEpisode] = {
+case class UnknownBroadcastEpisode(fileName: String, date: LocalDate) extends UnknownEpisode
+
+class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSystem)
+    extends EpisodeClassifier[UnknownBroadcastEpisode](config, fileSystem) {
+  def findUnknownEpisodes(): Seq[UnknownBroadcastEpisode] = {
     val validExtensions = List(".mkv", ".ts")
     val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
 
@@ -26,29 +29,6 @@ class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSys
     fileSystem
       .walk(config.mediaFolder)
       .filter(f => isValid(f) && isUnknown(f))
-      .map(f => UnknownEpisode(f, dateBroadcasted(f)))
-  }
-
-  def renameEpisode(
-    episode: UnknownEpisode,
-    seasonNumber: SeasonNumber,
-    episodeNumber: Int
-  ): (String, String) = {
-    val sourceFile = episode.fileName
-
-    val formattedSeason = f"${seasonNumber.value}%02d"
-    val formattedEpisode = f"${episodeNumber}%02d"
-    val insertIndex = sourceFile.lastIndexOf('.')
-    val ext = sourceFile.substring(insertIndex)
-    val titleSeasonAndEpisode = config.template
-      .replace("[season]", formattedSeason)
-      .replace("[episode]", formattedEpisode)
-
-    val newFileName = titleSeasonAndEpisode + ext
-    val targetFile = fileSystem.absoluteToRelative(newFileName, sourceFile)
-
-    fileSystem.rename(sourceFile, targetFile)
-
-    (sourceFile, targetFile)
+      .map(f => UnknownBroadcastEpisode(f, dateBroadcasted(f)))
   }
 }
