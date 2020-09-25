@@ -18,8 +18,8 @@ class RemuxCoreLogic(
   def run(): Unit = {
     subtitleDownloader.download()
     val unknownEpisodes = classifier.findUnknownEpisodes()
-    unknownEpisodes.foreach { episode =>
-      logger.log(episode.fileName)
+    unknownEpisodes.sortBy(_.fileName).foreach { episode =>
+      logger.debug(episode.fileName)
       val subtitles = subtitleExtractor.extractFromFile(episode.fileName)
     }
   }

@@ -38,7 +38,7 @@ class ReferenceSubtitleDownloaderImpl(
     )
     val allResults = upickle.default.read[List[SearchResult]](r.text)
     val lastEpisode = allResults.map(_.SeriesEpisode.toInt).max
-    logger.log(s"${jobConfig.seriesName} Season ${seasonInt} has ${lastEpisode} episodes")
+    logger.debug(s"${jobConfig.seriesName} Season ${seasonInt} has ${lastEpisode} episodes")
 
     val bestSubtitles = Range(1, lastEpisode + 1).flatMap { episodeNumber =>
       allResults
@@ -60,7 +60,7 @@ class ReferenceSubtitleDownloaderImpl(
         .replace("[episode]", f"${subtitle.SeriesEpisode.toInt}%02d")
       val targetFile = f"${targetFolder}/${template}.srt"
       if (!fileSystem.exists(targetFile)) {
-        logger.log(s"\t${subtitle.SubDownloadLink}")
+        logger.debug(s"\t${subtitle.SubDownloadLink}")
         val stream = requests.get.stream(subtitle.SubDownloadLink)
         fileSystem.streamCommandToFile(stream, "gunzip", targetFile)
       }

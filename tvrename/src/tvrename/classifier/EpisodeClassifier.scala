@@ -29,4 +29,5 @@ abstract case class EpisodeClassifier[A <: UnknownEpisode](config: JobConfig, fi
     fileSystem.rename(sourceFile, targetFile)
 
     (sourceFile, targetFile)
-  }}
+  }
+}

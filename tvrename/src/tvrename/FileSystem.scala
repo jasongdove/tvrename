@@ -19,7 +19,8 @@ object FileSystemImpl extends FileSystem {
 
   override def getModifyTime(path: String): Long = os.mtime(os.Path(path))
 
-  override def rename(source: String, dest: String): Unit = os.move(os.Path(source), os.Path(dest))
+  override def rename(source: String, dest: String): Unit =
+    os.move(os.Path(source), os.Path(dest), replaceExisting = true)
 
   override def absoluteToRelative(path: String, relativeTo: String): String =
     (os.Path(relativeTo) / os.up / os.RelPath(path)).toString
@@ -31,7 +32,7 @@ object FileSystemImpl extends FileSystem {
 
   override def exists(path: String): Boolean =
     os.exists(os.Path(path))
-  
+
   def getTempFileName(): String = os.temp().toString
 
   def call(command: String*): Unit = os.proc(command).call()

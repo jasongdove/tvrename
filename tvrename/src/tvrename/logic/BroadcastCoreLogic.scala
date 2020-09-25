@@ -14,9 +14,9 @@ class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: Bro
     unknownEpisodes.foreach {
       case episode @ aired(episodeNumber) =>
         val (originalName, newName) = classifier.renameEpisode(episode, config.seasonNumber, episodeNumber)
-        logger.log(s"Moved $originalName to $newName")
+        logger.info(s"Moved $originalName to $newName")
       case episode =>
-        logger.log(s"Unable to find episode number for ${episode.fileName}")
+        logger.warn(s"Unable to find episode number for ${episode.fileName}")
     }
   }
 }
