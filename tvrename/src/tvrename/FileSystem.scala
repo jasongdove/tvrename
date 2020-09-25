@@ -10,6 +10,8 @@ trait FileSystem {
   def makeDirs(path: String): Unit
   def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String)
   def exists(path: String): Boolean
+  def getTempFileName(): String
+  def call(command: String*)
 }
 
 object FileSystemImpl extends FileSystem {
@@ -29,4 +31,8 @@ object FileSystemImpl extends FileSystem {
 
   override def exists(path: String): Boolean =
     os.exists(os.Path(path))
+  
+  def getTempFileName(): String = os.temp().toString
+
+  def call(command: String*): Unit = os.proc(command).call()
 }

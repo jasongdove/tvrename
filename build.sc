@@ -7,6 +7,8 @@ object tvrename extends ScalaModule {
     ivy"com.lihaoyi::upickle:0.9.5",
     ivy"com.lihaoyi::requests:0.5.1",
     ivy"com.github.pureconfig::pureconfig:0.13.0",
-    ivy"org.rogach::scallop::3.5.1"
+    ivy"org.rogach::scallop:3.5.1",
+    ivy"com.github.kokorin:jebml:2.3",
+    ivy"ch.qos.logback:logback-classic:1.2.3"
   )
 }

@@ -37,11 +37,12 @@ object Main {
             Some(coreLogic)
           }
           case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
-            //fileSystem.makeDirs(config.cacheFolder)
             val subtitleDownloader: ReferenceSubtitleDownloader =
               new ReferenceSubtitleDownloaderImpl(config, jobConfig, fileSystem, logger)
             val classifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
-            val coreLogic: CoreLogic = new RemuxCoreLogic(jobConfig, classifier, subtitleDownloader, logger)
+            val subtitleExtractor: SubtitleExtractor = new SubtitleExtractorImpl(config, fileSystem, logger)
+            val coreLogic: CoreLogic =
+              new RemuxCoreLogic(jobConfig, classifier, subtitleDownloader, subtitleExtractor, logger)
             Some(coreLogic)
           }
         }
