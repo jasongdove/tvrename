@@ -7,11 +7,13 @@ trait FileSystem {
   def getModifyTime(path: String): Long
   def rename(source: String, dest: String): Unit
   def absoluteToRelative(path: String, relativeTo: String): String
+  def relativeTo(path: String, relativeTo: String): String
   def makeDirs(path: String): Unit
   def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String)
   def exists(path: String): Boolean
   def getTempFileName(): String
   def call(command: String*)
+  def read(path: String): String
 }
 
 object FileSystemImpl extends FileSystem {
@@ -25,6 +27,9 @@ object FileSystemImpl extends FileSystem {
   override def absoluteToRelative(path: String, relativeTo: String): String =
     (os.Path(relativeTo) / os.up / os.RelPath(path)).toString
 
+  override def relativeTo(path: String, relativeTo: String): String =
+    os.Path(path).relativeTo(os.Path(relativeTo)).toString
+
   override def makeDirs(path: String): Unit = os.makeDir.all(os.Path(path))
 
   override def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String): Unit =
@@ -33,7 +38,9 @@ object FileSystemImpl extends FileSystem {
   override def exists(path: String): Boolean =
     os.exists(os.Path(path))
 
-  def getTempFileName(): String = os.temp().toString
+  override def getTempFileName(): String = os.temp().toString
 
-  def call(command: String*): Unit = os.proc(command).call()
+  override def call(command: String*): Unit = os.proc(command).call(mergeErrIntoOut = true)
+
+  override def read(path: String): String = os.read(os.Path(path))
 }

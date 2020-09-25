@@ -41,8 +41,16 @@ object Main {
               new ReferenceSubtitleDownloaderImpl(config, jobConfig, fileSystem, logger)
             val classifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
             val subtitleExtractor: SubtitleExtractor = new SubtitleExtractorImpl(config, jobConfig, fileSystem, logger)
+            val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem)
             val coreLogic: CoreLogic =
-              new RemuxCoreLogic(jobConfig, classifier, subtitleDownloader, subtitleExtractor, logger)
+              new RemuxCoreLogic(
+                jobConfig,
+                classifier,
+                subtitleDownloader,
+                subtitleExtractor,
+                subtitleProcessor,
+                logger
+              )
             Some(coreLogic)
           }
         }

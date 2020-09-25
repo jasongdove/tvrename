@@ -13,6 +13,7 @@ class RemuxCoreLogic(
   classifier: RemuxEpisodeClassifier,
   subtitleDownloader: ReferenceSubtitleDownloader,
   subtitleExtractor: SubtitleExtractor,
+  subtitleProcessor: SubtitleProcessor,
   logger: Logger
 ) extends CoreLogic {
   def run(): Unit = {
@@ -20,7 +21,17 @@ class RemuxCoreLogic(
     val unknownEpisodes = classifier.findUnknownEpisodes()
     unknownEpisodes.sortBy(_.fileName).foreach { episode =>
       logger.debug(episode.fileName)
-      val subtitles = subtitleExtractor.extractFromFile(episode.fileName)
+      val cleanedText = subtitleExtractor
+        .extractFromFile(episode.fileName)
+        .map(subtitleProcessor.convertToText)
+        .map(subtitleProcessor.cleanText)
+
+      cleanedText match {
+        case Some(value) =>
+          logger.info("Successfully converted to text")
+        case None =>
+          logger.info("Unable to extract subtitles text")
+      }
     }
   }
 }
