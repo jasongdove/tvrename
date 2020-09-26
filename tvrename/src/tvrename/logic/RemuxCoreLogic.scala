@@ -22,7 +22,7 @@ class RemuxCoreLogic(
     subtitleDownloader.download()
     val unknownEpisodes = classifier.findUnknownEpisodes()
     unknownEpisodes.sortBy(_.fileName).foreach { episode =>
-      logger.debug(episode.fileName)
+      logger.debug(fileSystem.getFileName(episode.fileName))
       val matchedEpisodes = subtitleExtractor
         .extractFromFile(episode.fileName)
         .map(subtitleProcessor.convertToLines)
@@ -35,19 +35,21 @@ class RemuxCoreLogic(
           .replace("[season]", f"${episodeMatch.seasonNumber}%02d")
           .replace("[episode]", f"${episodeMatch.episodeNumber}%02d")
 
-        logger.info(s"Matched with ${episodeMatch.confidence}% confidence to ${template}")
+        logger.debug(s"\tMatched with ${episodeMatch.confidence}% confidence to ${template}")
 
         val insertIndex = episode.fileName.lastIndexOf('.')
         val ext = episode.fileName.substring(insertIndex)
         val newFileName = template + ext
-        
+        val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
+
         if (episodeMatch.confidence < jobConfig.minimumConfidence) {
           logger.warn("Confidence too low; will not rename")
+        } else if (targetFile == episode.fileName) {
+          logger.debug(s"\t=> NO CHANGE")
         } else if (jobConfig.dryRun) {
-          logger.info(s"=> DRY RUN")
+          logger.debug(s"\t=> DRY RUN")
         } else {
-          logger.info(s"=> ${newFileName}")
-          val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
+          logger.debug(s"=> ${newFileName}")
           fileSystem.rename(episode.fileName, targetFile)
         }
       }
