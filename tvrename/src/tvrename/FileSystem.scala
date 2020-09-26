@@ -13,7 +13,7 @@ trait FileSystem {
   def exists(path: String): Boolean
   def getTempFileName(): String
   def call(command: String*)
-  def read(path: String): String
+  def readLines(path: String): Seq[String]
 }
 
 object FileSystemImpl extends FileSystem {
@@ -42,5 +42,5 @@ object FileSystemImpl extends FileSystem {
 
   override def call(command: String*): Unit = os.proc(command).call(mergeErrIntoOut = true)
 
-  override def read(path: String): String = os.read(os.Path(path))
+  override def readLines(path: String): Seq[String] = os.read.lines(os.Path(path))
 }

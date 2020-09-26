@@ -4,25 +4,45 @@ import tvrename.FileSystem
 import tvrename.config.TVRenameConfig
 
 trait SubtitleProcessor {
-  def convertToText(subtitles: Subtitles): String
-  def cleanText(text: String): String
+  def convertToLines(subtitles: Subtitles): Seq[String]
+  def cleanLines(lines: Seq[String]): Seq[String]
 }
 
 class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem) extends SubtitleProcessor {
-  def convertToText(subtitles: Subtitles): String = {
+  def convertToLines(subtitles: Subtitles): Seq[String] = {
     subtitles match {
       case pgs @ PGS(_) =>
         val subRip = ocr(pgs)
-        fileSystem.read(subRip.primaryFileName)
+        fileSystem.readLines(subRip.primaryFileName)
       case vob @ VobSub(_) =>
         val subRip = ocr(vob)
-        fileSystem.read(subRip.primaryFileName)
-      case srt @ SubRip(_) =>
-        fileSystem.read(srt.primaryFileName)
+        fileSystem.readLines(subRip.primaryFileName)
+      case subRip @ SubRip(_) =>
+        fileSystem.readLines(subRip.primaryFileName)
     }
   }
 
-  def cleanText(text: String): String = text
+  def cleanLines(lines: Seq[String]): Seq[String] = {
+    val numericLine = "[\\d].*".r
+    val whitespace = "[\\s]*".r
+    val badApostrophe = "(?<=\\w)\\s*['’](?=\\w)".r
+    val namesAndDashes = "-[\\s\\w\\d#]*[:\\s]*".r
+    val sdh = "[\\(\\[].*[\\)\\]]".r
+    val lyrics = ".*J[‘']\\s.*".r
+    lines
+      .map(s => s.toLowerCase)
+      .map(s => s.replace("||", "ll"))
+      .map(s => s.trim())
+      .map(s => badApostrophe.replaceAllIn(s, "'"))
+      .map(s => namesAndDashes.replaceAllIn(s, ""))
+      .filter {
+        case numericLine() => false
+        case whitespace()  => false
+        case sdh()         => false
+        case lyrics()      => false
+        case _             => true
+      }
+  }
 
   private def ocr(subtitles: PGS): SubRip = {
     val subRip = SubRip(subtitles.baseFileName)

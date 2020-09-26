@@ -23,14 +23,14 @@ class RemuxCoreLogic(
       logger.debug(episode.fileName)
       val cleanedText = subtitleExtractor
         .extractFromFile(episode.fileName)
-        .map(subtitleProcessor.convertToText)
-        .map(subtitleProcessor.cleanText)
+        .map(subtitleProcessor.convertToLines)
+        .map(subtitleProcessor.cleanLines)
 
       cleanedText match {
         case Some(value) =>
-          logger.info("Successfully converted to text")
+          logger.info("Successfully converted to lines of text")
         case None =>
-          logger.info("Unable to extract subtitles text")
+          logger.info("Unable to extract subtitles lines of text")
       }
     }
   }
