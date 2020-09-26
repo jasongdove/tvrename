@@ -2,45 +2,51 @@ package tvrename.subtitles
 
 import tvrename.FileSystem
 import tvrename.config.TVRenameConfig
+import com.github.dnbn.submerge.api.parser.SRTParser
+import java.io.File
+import collection.JavaConverters._
 
 trait SubtitleProcessor {
-  def convertToLines(subtitles: Subtitles): Seq[String]
-  def cleanLines(lines: Seq[String]): Seq[String]
+  def convertToLines(subtitles: Subtitles): List[String]
+  def cleanLines(lines: List[String]): List[String]
 }
 
 class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem) extends SubtitleProcessor {
-  def convertToLines(subtitles: Subtitles): Seq[String] = {
+  val subripParser = new SRTParser
+
+  def convertToLines(subtitles: Subtitles): List[String] = {
     subtitles match {
       case pgs @ PGS(_) =>
         val subRip = ocr(pgs)
-        fileSystem.readLines(subRip.primaryFileName)
+        readLinesFromFile(subRip.primaryFileName)
       case vob @ VobSub(_) =>
         val subRip = ocr(vob)
-        fileSystem.readLines(subRip.primaryFileName)
+        readLinesFromFile(subRip.primaryFileName)
       case subRip @ SubRip(_) =>
-        fileSystem.readLines(subRip.primaryFileName)
+        readLinesFromFile(subRip.primaryFileName)
     }
   }
 
-  def cleanLines(lines: Seq[String]): Seq[String] = {
-    val numericLine = "[\\d].*".r
+  def cleanLines(lines: List[String]): List[String] = {
     val whitespace = "[\\s]*".r
     val badApostrophe = "(?<=\\w)\\s*['’](?=\\w)".r
     val namesAndDashes = "-[\\s\\w\\d#]*[:\\s]*".r
     val sdh = "[\\(\\[].*[\\)\\]]".r
     val lyrics = ".*J[‘']\\s.*".r
+    val italicTags = "<[\\/]*i>".r
     lines
       .map(s => s.toLowerCase)
       .map(s => s.replace("||", "ll"))
-      .map(s => s.trim())
+      .map(s => s.replace("♪", ""))
       .map(s => badApostrophe.replaceAllIn(s, "'"))
       .map(s => namesAndDashes.replaceAllIn(s, ""))
+      .map(s => italicTags.replaceAllIn(s, ""))
+      .map(s => s.trim())
       .filter {
-        case numericLine() => false
-        case whitespace()  => false
-        case sdh()         => false
-        case lyrics()      => false
-        case _             => true
+        case whitespace() => false
+        case sdh()        => false
+        case lyrics()     => false
+        case _            => true
       }
   }
 
@@ -73,5 +79,10 @@ class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem) 
       fileSystem.call("vobsub2srt", "-l", "en", subtitles.baseFileName)
     }
     subRip
+  }
+
+  private def readLinesFromFile(fileName: String): List[String] = {
+    val subtitles = subripParser.parse(new File(fileName))
+    subtitles.getLines.asScala.toList.flatMap(_.getTextLines.asScala.toList)
   }
 }
