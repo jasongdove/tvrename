@@ -9,6 +9,7 @@ object tvrename extends ScalaModule {
     ivy"com.github.pureconfig::pureconfig:0.13.0",
     ivy"org.rogach::scallop:3.5.1",
     ivy"com.github.kokorin:jebml:2.3",
-    ivy"ch.qos.logback:logback-classic:1.2.3"
+    ivy"ch.qos.logback:logback-classic:1.2.3",
+    ivy"com.github.dnbn.submerge:submerge-api:1.9.2"
   )
 }

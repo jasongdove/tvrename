@@ -44,7 +44,7 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
       case Some(subtitlesTrack) =>
         if (!subtitlesTrack.subtitles.fileNames.forall(fileSystem.exists)) {
           logger.debug(
-            s"Extracting track ${subtitlesTrack.trackNumber} of type ${subtitles.getClass.getSimpleName}"
+            s"Extracting track ${subtitlesTrack.trackNumber} of type ${subtitlesTrack.subtitles.getClass.getSimpleName}"
           )
           val tempFileName = fileSystem.getTempFileName.replace(".", "")
           fileSystem.call("mkvextract", fileName, "tracks", s"${subtitlesTrack.trackNumber}:${tempFileName}")
