@@ -2,13 +2,14 @@ package tvrename.subtitles
 
 import tvrename._
 import tvrename.config._
+import tvrename.classifier.UnknownRemuxEpisode
 import org.ebml.io.FileDataSource
 import org.ebml.matroska.{MatroskaFile, MatroskaFileTrack}
 import org.ebml.matroska.MatroskaFileTrack.TrackType
 import java.io.File
 
 trait SubtitleExtractor {
-  def extractFromFile(fileName: String): Option[Subtitles]
+  def extractFromEpisode(episode: UnknownRemuxEpisode): Option[Subtitles]
 }
 
 class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fileSystem: FileSystem, logger: Logger)
@@ -21,17 +22,16 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
       Subtitles.fromTrack(track, baseFileName).map(SubtitlesTrack(track.getTrackNo - 1, _))
   }
 
-  def extractFromFile(fileName: String): Option[Subtitles] = {
-    val movieHash = OpenSubtitlesHasher.computeHash(new File(fileName))
-    val folderOne = s"${movieHash.substring(0, 2)}"
-    val folderTwo = s"${movieHash.substring(2, 4)}"
+  def extractFromEpisode(episode: UnknownRemuxEpisode): Option[Subtitles] = {
+    val folderOne = s"${episode.movieHash.substring(0, 2)}"
+    val folderTwo = s"${episode.movieHash.substring(2, 4)}"
 
     val targetFolder = s"${config.cacheFolder}/extracted/${folderOne}/${folderTwo}"
     fileSystem.makeDirs(targetFolder)
 
-    val cacheFileNameWithoutExtension = s"${targetFolder}/${movieHash}"
+    val cacheFileNameWithoutExtension = s"${targetFolder}/${episode.movieHash}"
 
-    val dataSource = new FileDataSource(fileName)
+    val dataSource = new FileDataSource(episode.fileName)
     val matroska = new MatroskaFile(dataSource)
     matroska.readFile()
     var subtitles = matroska.getTrackList
@@ -44,10 +44,10 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
       case Some(subtitlesTrack) =>
         if (!subtitlesTrack.subtitles.fileNames.forall(fileSystem.exists)) {
           logger.debug(
-            s"Extracting track ${subtitlesTrack.trackNumber} of type ${subtitlesTrack.subtitles.getClass.getSimpleName}"
+            s"\tExtracting track ${subtitlesTrack.trackNumber} of type ${subtitlesTrack.subtitles.getClass.getSimpleName}"
           )
           val tempFileName = fileSystem.getTempFileName.replace(".", "")
-          fileSystem.call("mkvextract", fileName, "tracks", s"${subtitlesTrack.trackNumber}:${tempFileName}")
+          fileSystem.call("mkvextract", episode.fileName, "tracks", s"${subtitlesTrack.trackNumber}:${tempFileName}")
           val appendExtension = subtitlesTrack.subtitles.extensions.size > 1
           subtitlesTrack.subtitles.extensions.foreach { extension =>
             val sourceFileName = if (appendExtension) s"${tempFileName}.${extension}" else tempFileName

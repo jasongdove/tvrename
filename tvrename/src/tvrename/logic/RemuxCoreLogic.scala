@@ -23,8 +23,9 @@ class RemuxCoreLogic(
     val unknownEpisodes = classifier.findUnknownEpisodes()
     unknownEpisodes.sortBy(_.fileName).foreach { episode =>
       logger.debug(fileSystem.getFileName(episode.fileName))
+      logger.debug(s"\tMovie hash ${episode.movieHash}")
       val matchedEpisodes = subtitleExtractor
-        .extractFromFile(episode.fileName)
+        .extractFromEpisode(episode)
         .map(subtitleProcessor.convertToLines)
         .map(subtitleProcessor.cleanLines)
         .flatMap(subtitleMatcher.matchToReference)
