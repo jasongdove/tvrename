@@ -1,0 +1,3 @@
+[submodule "jebml"]
+	path = jebml
+	url = https://github.com/mjameson-se/jebml
