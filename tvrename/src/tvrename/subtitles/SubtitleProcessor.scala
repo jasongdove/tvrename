@@ -67,7 +67,7 @@ class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem) 
         s"OUTPUT=/data/${fileSystem.relativeTo(subRip.primaryFileName, config.cacheFolder)}",
         "-e",
         "LANGUAGE=eng",
-        "tentacule/pgstosrt"
+        "local/pgstosrt"
       )
     }
     subRip
