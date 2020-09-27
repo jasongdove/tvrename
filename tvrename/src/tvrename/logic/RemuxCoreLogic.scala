@@ -23,8 +23,8 @@ class RemuxCoreLogic(
     subtitleDownloader.downloadIfNeeded()
     val unknownEpisodes = classifier.findUnknownEpisodes()
     unknownEpisodes.sortBy(_.fileName).foreach { episode =>
-      logger.debug(fileSystem.getFileName(episode.fileName))
-      logger.debug(s"\tMovie hash ${episode.movieHash}")
+      logger.info(fileSystem.getFileName(episode.fileName))
+      //logger.debug(s"\tMovie hash ${episode.movieHash}")
       val matchedEpisodes = subtitleExtractor
         .extractFromEpisode(episode)
         .map(subtitleProcessor.convertToLines)
@@ -37,8 +37,6 @@ class RemuxCoreLogic(
           .replace("[season]", f"${episodeMatch.seasonNumber}%02d")
           .replace("[episode]", f"${episodeMatch.episodeNumber}%02d")
 
-        logger.debug(s"\tMatched with ${episodeMatch.confidence}% confidence to ${template}")
-
         val insertIndex = episode.fileName.lastIndexOf('.')
         val ext = episode.fileName.substring(insertIndex)
         val newFileName = template + ext
@@ -47,11 +45,11 @@ class RemuxCoreLogic(
         if (episodeMatch.confidence < jobConfig.minimumConfidence) {
           logger.warn("Confidence too low; will not rename")
         } else if (targetFile == episode.fileName) {
-          logger.debug(s"\t=> NO CHANGE")
+          logger.info(s"\t=> ${episodeMatch.confidence}% NO CHANGE")
         } else if (dryRun) {
-          logger.debug(s"\t=> DRY RUN")
+          logger.info(s"\t=> ${episodeMatch.confidence}% DRY RUN => ${template}")
         } else {
-          logger.debug(s"=> ${newFileName}")
+          logger.info(s"\t=> ${episodeMatch.confidence}% ${newFileName}")
           fileSystem.rename(episode.fileName, targetFile)
         }
       }
