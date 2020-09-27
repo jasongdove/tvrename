@@ -25,15 +25,17 @@ object Subtitles {
 
 case class SubRip(baseFileName: String) extends Subtitles {
   def extensions = Set("srt")
-  def priority = 1
+
+  // these are most likely CC => text from makemkv
+  def priority = 3
 }
 
 case class VobSub(baseFileName: String) extends Subtitles {
   def extensions = Set("sub", "idx")
-  def priority = 3
+  def priority = 2
 }
 
 case class PGS(baseFileName: String) extends Subtitles {
   def extensions = Set("sup")
-  def priority = 2
+  def priority = 1
 }

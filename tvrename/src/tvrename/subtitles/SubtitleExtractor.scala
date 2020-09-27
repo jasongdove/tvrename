@@ -36,6 +36,7 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
     matroska.readFile()
     var subtitles = matroska.getTrackList
       .filter(t => t.getTrackType == TrackType.SUBTITLE)
+      .filter(t => t.isFlagDefault)
       .flatMap(t => SubtitlesTrack.fromTrack(t, cacheFileNameWithoutExtension))
       .sortBy(st => st.subtitles.priority)
       .headOption
