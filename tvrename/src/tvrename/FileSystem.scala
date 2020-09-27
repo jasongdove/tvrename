@@ -34,7 +34,7 @@ object FileSystemImpl extends FileSystem {
   override def makeDirs(path: String): Unit = os.makeDir.all(os.Path(path))
 
   override def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String): Unit =
-    os.proc(command).call(stdin = stream, stdout = os.Path(targetFile))
+    os.proc(command).call(stdin = stream, stdout = os.Path(targetFile), mergeErrIntoOut = true)
 
   override def exists(path: String): Boolean =
     os.exists(os.Path(path))

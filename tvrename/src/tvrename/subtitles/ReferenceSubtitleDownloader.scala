@@ -69,10 +69,12 @@ class ReferenceSubtitleDownloaderImpl(
       if (!fileSystem.exists(targetFile)) {
         val validSubtitle = episodeSearchResults.find { subtitle =>
           logger.debug(subtitle.SubDownloadLink)
-          val stream = requests.get.stream(subtitle.SubDownloadLink)
-          fileSystem.streamCommandToFile(stream, "gunzip", tempFile)
-          val parseAttempt = Try { parser.parse(new File(tempFile)) }
-          parseAttempt.isSuccess
+          val downloadAndParseAttempt = Try {
+            val stream = requests.get.stream(subtitle.SubDownloadLink, check = false)
+            fileSystem.streamCommandToFile(stream, "gunzip", tempFile)
+            parser.parse(new File(tempFile))
+          }
+          downloadAndParseAttempt.isSuccess
         }
 
         validSubtitle match {
