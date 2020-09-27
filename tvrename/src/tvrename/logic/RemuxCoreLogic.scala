@@ -20,7 +20,7 @@ class RemuxCoreLogic(
   logger: Logger
 ) extends CoreLogic {
   def run(): Unit = {
-    subtitleDownloader.download()
+    subtitleDownloader.downloadIfNeeded()
     val unknownEpisodes = classifier.findUnknownEpisodes()
     unknownEpisodes.sortBy(_.fileName).foreach { episode =>
       logger.debug(fileSystem.getFileName(episode.fileName))

@@ -15,6 +15,7 @@ trait FileSystem {
   def call(command: String*)
   def readLines(path: String): Seq[String]
   def getFileName(path: String): String
+  def writeToFile(path: String, contents: String)
 }
 
 object FileSystemImpl extends FileSystem {
@@ -49,4 +50,7 @@ object FileSystemImpl extends FileSystem {
     val p = os.Path(path)
     s"${p.baseName}.${p.ext}"
   }
+
+  override def writeToFile(path: String, contents: String): Unit =
+    os.write.over(os.Path(path), contents)
 }
