@@ -5,7 +5,7 @@ case class SeasonNumber(value: Int) extends AnyVal
 
 sealed trait JobConfig {
   def mediaFolder: String
-  //def recursive: Boolean
+  def recursive: Boolean
   def template: String
 }
 
@@ -13,7 +13,8 @@ case class BroadcastJobConfig(
   mediaFolder: String,
   template: String,
   seriesId: SeriesId,
-  seasonNumber: SeasonNumber
+  seasonNumber: SeasonNumber,
+  recursive: Boolean = false
 ) extends JobConfig
 
 case class RemuxJobConfig(
@@ -22,7 +23,8 @@ case class RemuxJobConfig(
   seriesId: SeriesId,
   seriesName: String,
   seasonNumber: SeasonNumber,
-  minimumConfidence: Int = 40
+  minimumConfidence: Int = 40,
+  recursive: Boolean = false
 ) extends JobConfig
 
 object JobConfig {

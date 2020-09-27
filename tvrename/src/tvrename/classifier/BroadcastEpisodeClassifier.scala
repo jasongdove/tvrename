@@ -8,8 +8,8 @@ import tvrename.config._
 
 case class UnknownBroadcastEpisode(fileName: String, date: LocalDate) extends UnknownEpisode
 
-class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSystem)
-    extends EpisodeClassifier[UnknownBroadcastEpisode](config, fileSystem) {
+class BroadcastEpisodeClassifier(jobConfig: BroadcastJobConfig, fileSystem: FileSystem)
+    extends EpisodeClassifier[UnknownBroadcastEpisode](jobConfig, fileSystem) {
   def findUnknownEpisodes(): Seq[UnknownBroadcastEpisode] = {
     val validExtensions = List(".mkv", ".ts")
     val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
@@ -27,7 +27,7 @@ class BroadcastEpisodeClassifier(config: BroadcastJobConfig, fileSystem: FileSys
         .toLocalDate
 
     fileSystem
-      .walk(config.mediaFolder)
+      .walk(jobConfig.mediaFolder, jobConfig.recursive)
       .filter(f => isValid(f) && isUnknown(f))
       .map(f => UnknownBroadcastEpisode(f, dateBroadcasted(f)))
   }

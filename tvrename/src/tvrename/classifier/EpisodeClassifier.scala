@@ -5,7 +5,7 @@ import tvrename.config._
 
 trait UnknownEpisode { def fileName: String }
 
-abstract case class EpisodeClassifier[A <: UnknownEpisode](config: JobConfig, fileSystem: FileSystem) {
+abstract case class EpisodeClassifier[A <: UnknownEpisode](jobConfig: JobConfig, fileSystem: FileSystem) {
   def findUnknownEpisodes(): Seq[A]
 
   def renameEpisode(
@@ -19,7 +19,7 @@ abstract case class EpisodeClassifier[A <: UnknownEpisode](config: JobConfig, fi
     val formattedEpisode = f"${episodeNumber}%02d"
     val insertIndex = sourceFile.lastIndexOf('.')
     val ext = sourceFile.substring(insertIndex)
-    val titleSeasonAndEpisode = config.template
+    val titleSeasonAndEpisode = jobConfig.template
       .replace("[season]", formattedSeason)
       .replace("[episode]", formattedEpisode)
 

@@ -3,7 +3,7 @@ package tvrename
 import os.copy.over
 
 trait FileSystem {
-  def walk(path: String): IndexedSeq[String]
+  def walk(path: String, recursive: Boolean = false): IndexedSeq[String]
   def getModifyTime(path: String): Long
   def rename(source: String, dest: String): Unit
   def absoluteToRelative(path: String, relativeTo: String): String
@@ -19,7 +19,8 @@ trait FileSystem {
 }
 
 object FileSystemImpl extends FileSystem {
-  override def walk(path: String): IndexedSeq[String] = os.walk(os.Path(path)).map(_.toString)
+  override def walk(path: String, recursive: Boolean = false): IndexedSeq[String] =
+    os.walk(os.Path(path), maxDepth = if (recursive) Int.MaxValue else 1).map(_.toString)
 
   override def getModifyTime(path: String): Long = os.mtime(os.Path(path))
 
