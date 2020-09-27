@@ -22,8 +22,7 @@ case class RemuxJobConfig(
   seriesId: SeriesId,
   seriesName: String,
   seasonNumber: SeasonNumber,
-  minimumConfidence: Int = 40,
-  dryRun: Boolean = false
+  minimumConfidence: Int = 40
 ) extends JobConfig
 
 object JobConfig {

@@ -46,6 +46,7 @@ object Main {
             val coreLogic: CoreLogic =
               new RemuxCoreLogic(
                 jobConfig,
+                terminalConfig.renameCommand.dryRun(),
                 classifier,
                 subtitleDownloader,
                 subtitleExtractor,

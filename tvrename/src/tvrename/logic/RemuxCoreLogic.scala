@@ -10,6 +10,7 @@ import org.ebml.matroska.MatroskaFileTrack.TrackType
 
 class RemuxCoreLogic(
   jobConfig: RemuxJobConfig,
+  dryRun: Boolean,
   classifier: RemuxEpisodeClassifier,
   subtitleDownloader: ReferenceSubtitleDownloader,
   subtitleExtractor: SubtitleExtractor,
@@ -47,7 +48,7 @@ class RemuxCoreLogic(
           logger.warn("Confidence too low; will not rename")
         } else if (targetFile == episode.fileName) {
           logger.debug(s"\t=> NO CHANGE")
-        } else if (jobConfig.dryRun) {
+        } else if (dryRun) {
           logger.debug(s"\t=> DRY RUN")
         } else {
           logger.debug(s"=> ${newFileName}")
