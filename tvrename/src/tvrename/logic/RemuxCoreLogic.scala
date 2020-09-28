@@ -19,7 +19,7 @@ class RemuxCoreLogic(
 ) extends CoreLogic {
   def run(): IO[Unit] =
     IO {
-      subtitleDownloader.downloadIfNeeded()
+      subtitleDownloader.download()
       val unknownEpisodes = classifier.findUnknownEpisodes()
       unknownEpisodes.sortBy(_.fileName).foreach { episode =>
         logger.info(fileSystem.getFileName(episode.fileName))
@@ -42,7 +42,7 @@ class RemuxCoreLogic(
           val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
 
           if (episodeMatch.confidence < jobConfig.minimumConfidence) {
-            logger.warn("\t=> Confidence too low; will not rename")
+            logger.warn(s"\t=> ${episodeMatch.confidence}% confidence too low; will not rename")
           } else if (targetFile == episode.fileName) {
             logger.info(s"\t=> ${episodeMatch.confidence}% NO CHANGE")
           } else if (dryRun) {
@@ -79,7 +79,7 @@ class VerifyRemuxCoreLogic(
       if (fileSystem.exists(verifiedFileName)) {
         logger.info("Media folder has already been verified")
       } else {
-        subtitleDownloader.downloadIfNeeded()
+        subtitleDownloader.download()
         val unknownEpisodes = classifier.findUnknownEpisodes()
         val matchResults = unknownEpisodes.sortBy(_.fileName).map { episode =>
           logger.info(fileSystem.getFileName(episode.fileName))

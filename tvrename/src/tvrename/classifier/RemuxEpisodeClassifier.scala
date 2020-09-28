@@ -12,7 +12,7 @@ case class UnknownRemuxEpisode(fileName: String) extends UnknownEpisode {
   lazy val movieHash = OpenSubtitlesHasher.computeHash(new File(fileName))
 }
 
-class RemuxEpisodeClassifier(jobConfig: RemuxJobConfig, fileSystem: FileSystem)
+class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownRemuxEpisode](jobConfig, fileSystem) {
   def findUnknownEpisodes(): Seq[UnknownRemuxEpisode] = {
     val validExtensions = List(".mkv")
@@ -23,7 +23,7 @@ class RemuxEpisodeClassifier(jobConfig: RemuxJobConfig, fileSystem: FileSystem)
 
     fileSystem
       .walk(jobConfig.mediaFolder, jobConfig.recursive)
-      .filter(f => isValid(f) && isUnknown(f))
+      .filter(f => isValid(f) && (command == Verify || isUnknown(f)))
       .map(f => UnknownRemuxEpisode(f))
   }
 }

@@ -27,19 +27,20 @@ object Main extends IOApp {
 
     val logger: Logger = LoggerImpl
     val terminalConfig = new TerminalConfig(args)
-    val command = terminalConfig.subcommand match {
-      case Some(terminalConfig.renameCommand) => Some(Rename)
-      case Some(terminalConfig.verifyCommand) => Some(Verify)
-      case None => None
+    val commandIO: IO[Command] = terminalConfig.subcommand match {
+      case Some(terminalConfig.renameCommand) => IO(Rename)
+      case Some(terminalConfig.verifyCommand) => IO(Verify)
+      case None => IO.raiseError(new Exception())
     }
 
     for {
       blocker <- Blocker[IO]
       config <- ConfigSource.file(s"$configFolder/tvrename.conf").loadF[IO, TVRenameConfig](blocker).asResource
+      command <- commandIO.asResource
       jobConfig <- command match {
-        case Some(Rename) =>
+        case Rename =>
           ConfigSource.file(terminalConfig.renameCommand.job()).loadF[IO, JobConfig](blocker).asResource
-        case Some(Verify) =>
+        case Verify =>
           ConfigSource.file(terminalConfig.verifyCommand.job()).loadF[IO, JobConfig](blocker).asResource
       }
     } yield {
@@ -53,13 +54,13 @@ object Main extends IOApp {
         case remuxJobConfig: RemuxJobConfig =>
           val subtitleDownloader: ReferenceSubtitleDownloader =
             new ReferenceSubtitleDownloaderImpl(config, remuxJobConfig, fileSystem, logger)
-          val classifier = new RemuxEpisodeClassifier(remuxJobConfig, fileSystem)
+          val classifier = new RemuxEpisodeClassifier(command, remuxJobConfig, fileSystem)
           val subtitleExtractor: SubtitleExtractor =
             new SubtitleExtractorImpl(config, remuxJobConfig, fileSystem, logger)
           val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem)
           val subtitleMatcher: SubtitleMatcher = new SubtitleMatcherImpl(config, remuxJobConfig, fileSystem)
           val coreLogic: CoreLogic = command match {
-            case Some(Rename) =>
+            case Rename =>
               new RemuxCoreLogic(
                 remuxJobConfig,
                 terminalConfig.renameCommand.dryRun(),
@@ -71,7 +72,7 @@ object Main extends IOApp {
                 fileSystem,
                 logger
               )
-            case Some(Verify) =>
+            case Verify =>
               new VerifyRemuxCoreLogic(
                 remuxJobConfig,
                 classifier,

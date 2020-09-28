@@ -1,14 +1,17 @@
 package tvrename.subtitles
 
-import upickle.default._
+import java.io.File
+
+import cats.effect.IO
+import com.github.dnbn.submerge.api.parser.SRTParser
 import tvrename._
 import tvrename.config._
-import java.io.File
+import upickle.default._
+
 import scala.util.Try
-import com.github.dnbn.submerge.api.parser.SRTParser
 
 trait ReferenceSubtitleDownloader {
-  def downloadIfNeeded(): Unit
+  def download(): IO[Unit]
 }
 
 class ReferenceSubtitleDownloaderImpl(
@@ -26,45 +29,55 @@ class ReferenceSubtitleDownloaderImpl(
     SeriesEpisode: String,
     SubDownloadLink: String,
     Score: Double
-  )
+  ) {
+    def isWebDL: Boolean = Option(InfoFormat).getOrElse("").toLowerCase == "web-dl"
+  }
 
   case object SearchResult {
-    implicit val reader = macroR[SearchResult]
+    implicit val reader: Reader[SearchResult] = macroR[SearchResult]
   }
 
   private val targetFolder =
     f"${config.cacheFolder}/reference/${jobConfig.seriesName}/Season ${jobConfig.seasonNumber.value}%02d"
 
-    private val episodeCountFile = s"${targetFolder}/.episode-count"
+  private val episodeCountFile = s"${targetFolder}/.episode-count"
 
-  override def downloadIfNeeded(): Unit = {
-    if (subtitlesAreNeeded()) {
+  private def expectedEpisodeCount: Option[Int] =
+    if (fileSystem.exists(episodeCountFile)) fileSystem.readLines(episodeCountFile).headOption.map(_.toInt) else None
+
+  private def actualEpisodeCount: Int = fileSystem.walk(targetFolder).count(f => f.endsWith(".srt"))
+
+  private def search(): Map[Int, List[SearchResult]] = {
+    val r = requests.get(
+      s"https://rest.opensubtitles.org/search/imdbid-${jobConfig.seriesId.value}/season-${jobConfig.seasonNumber.value}/sublanguageid-eng",
+      headers = Map("user-agent" -> "tvrename v1")
+    )
+
+    upickle.default.read[List[SearchResult]](r.text)
+      .filterNot(_.SubFileName.toLowerCase.contains(".ita.")) // sometimes the wrong language is returned ???
+      .filter(_.SubFormat.toLowerCase == "srt")
+      .groupBy(_.SeriesEpisode.toInt)
+  }
+
+  override def download(): IO[Unit] = {
+    fileSystem.makeDirs(targetFolder)
+
+    if (!expectedEpisodeCount.contains(actualEpisodeCount)) {
       val seasonInt = jobConfig.seasonNumber.value
 
-      val r = requests.get(
-        s"https://rest.opensubtitles.org/search/imdbid-${jobConfig.seriesId.value}/season-${seasonInt}/sublanguageid-eng",
-        headers = Map("user-agent" -> "tvrename v1")
-      )
-      val seasonSearchResults = upickle.default.read[List[SearchResult]](r.text)
-      val lastEpisode = seasonSearchResults.map(_.SeriesEpisode.toInt).max
+      val seasonSearchResults = search()
       // TODO: handle no episodes found for series/season
+      val lastEpisode = seasonSearchResults.keys.max
       logger.debug(s"${jobConfig.seriesName} Season ${seasonInt} has ${lastEpisode} episodes")
 
-      fileSystem.makeDirs(targetFolder)
       fileSystem.writeToFile(episodeCountFile, lastEpisode.toString)
 
       val parser = new SRTParser
 
-      Range(1, lastEpisode + 1).foreach { episodeNumber =>
-        val episodeSearchResults = seasonSearchResults
-          .filterNot(_.SubFileName.toLowerCase.contains(".ita.")) // sometimes the wrong language is returned ???
-          .filter(_.SubFormat.toLowerCase == "srt")
-          .filter(_.SeriesEpisode.toInt == episodeNumber)
-          .sortBy(s => Option(s.InfoFormat).getOrElse("").toLowerCase == "web-dl")
+      seasonSearchResults.foreach { case (episodeNumber, searchResults) =>
+        val sortedSearchResults = searchResults
+          .sortBy(_.isWebDL)(Ordering[Boolean].reverse)
           .sortBy(_.Score)(Ordering[Double].reverse)
-        (episodeNumber, episodeSearchResults)
-
-        val tempFile = fileSystem.getTempFileName()
 
         val template = jobConfig.template
           .replace("[series]", jobConfig.seriesName)
@@ -72,9 +85,10 @@ class ReferenceSubtitleDownloaderImpl(
           .replace("[episode]", f"${episodeNumber}%02d")
 
         val targetFile = f"${targetFolder}/${template}.srt"
-
         if (!fileSystem.exists(targetFile)) {
-          val validSubtitle = episodeSearchResults.find { subtitle =>
+          val tempFile = fileSystem.getTempFileName()
+
+          val validSubtitle = sortedSearchResults.find { subtitle =>
             logger.debug(subtitle.SubDownloadLink)
             val downloadAndParseAttempt = Try {
               val stream = requests.get.stream(subtitle.SubDownloadLink, check = false)
@@ -94,19 +108,7 @@ class ReferenceSubtitleDownloaderImpl(
         }
       }
     }
-  }
 
-  private def subtitlesAreNeeded(): Boolean = {
-    if (fileSystem.exists(episodeCountFile)) {
-      val episodeCount = fileSystem.readLines(episodeCountFile).headOption.map(_.toInt)
-      val episodesOnDisk = fileSystem
-        .walk(targetFolder)
-        .filter(f => f.endsWith(".srt"))
-        .size
-
-      episodeCount.exists(_ != episodesOnDisk)
-    } else {
-      true
-    }
+    IO.unit
   }
 }
