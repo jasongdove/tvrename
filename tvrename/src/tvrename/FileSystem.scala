@@ -16,6 +16,7 @@ trait FileSystem {
   def readLines(path: String): Seq[String]
   def getFileName(path: String): String
   def writeToFile(path: String, contents: String)
+  def concatPaths(one: String, two: String): String
 }
 
 object FileSystemImpl extends FileSystem {
@@ -54,4 +55,7 @@ object FileSystemImpl extends FileSystem {
 
   override def writeToFile(path: String, contents: String): Unit =
     os.write.over(os.Path(path), contents)
+
+  override def concatPaths(one: String, two: String): String =
+    (os.Path(one) / two).toString
 }

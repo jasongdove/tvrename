@@ -60,6 +60,49 @@ object Main {
         }
 
         coreLogic.map(_.run())
+      case terminalConfig.verifyCommand =>
+        val jobConfig = ConfigSource.file(terminalConfig.verifyCommand.job()).load[JobConfig]
+
+        val fileSystem: FileSystem = FileSystemImpl
+        val logger: Logger = LoggerImpl
+
+        val coreLogic = (config, jobConfig) match {
+          case (Left(failures), _) =>
+            println(failures)
+            None
+          case (_, Left(failures)) =>
+            println(failures)
+            None
+          case (Right(config), Right(jobConfig: BroadcastJobConfig)) => {
+            val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
+            val classifier = new BroadcastEpisodeClassifier(jobConfig, fileSystem)
+            val coreLogic: CoreLogic = new BroadcastCoreLogic(jobConfig, tvdb, classifier, logger)
+            Some(coreLogic)
+          }
+          case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
+            val subtitleDownloader: ReferenceSubtitleDownloader =
+              new ReferenceSubtitleDownloaderImpl(config, jobConfig, fileSystem, logger)
+            val classifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
+            val subtitleExtractor: SubtitleExtractor = new SubtitleExtractorImpl(config, jobConfig, fileSystem, logger)
+            val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem)
+            val subtitleMatcher: SubtitleMatcher = new SubtitleMatcherImpl(config, jobConfig, fileSystem)
+            val coreLogic: CoreLogic =
+              new VerifyRemuxCoreLogic(
+                jobConfig,
+                terminalConfig.renameCommand.dryRun(),
+                classifier,
+                subtitleDownloader,
+                subtitleExtractor,
+                subtitleProcessor,
+                subtitleMatcher,
+                fileSystem,
+                logger
+              )
+            Some(coreLogic)
+          }
+        }
+
+        coreLogic.map(_.run())
     }
   }
 }

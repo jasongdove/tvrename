@@ -8,7 +8,7 @@ class TerminalConfig(arguments: Seq[String]) extends ScallopConf(arguments) {
     val dryRun = opt[Boolean](default = Some(false))
   }
   val verifyCommand = new Subcommand("verify") {
-    val job = trailArg[String]()
+    val job = opt[String](required = true)
   }
   addSubcommand(renameCommand)
   addSubcommand(verifyCommand)

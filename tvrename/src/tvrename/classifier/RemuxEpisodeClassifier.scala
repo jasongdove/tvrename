@@ -16,7 +16,7 @@ class RemuxEpisodeClassifier(jobConfig: RemuxJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownRemuxEpisode](jobConfig, fileSystem) {
   def findUnknownEpisodes(): Seq[UnknownRemuxEpisode] = {
     val validExtensions = List(".mkv")
-    val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
+    val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{2})\..*""".r
 
     def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
     def isUnknown(fileName: String) = !knownPattern.matches(fileName)
