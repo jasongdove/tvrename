@@ -43,10 +43,11 @@ class ReferenceSubtitleDownloaderImpl(
 
       val r = requests.get(
         s"https://rest.opensubtitles.org/search/imdbid-${jobConfig.seriesId.value}/season-${seasonInt}/sublanguageid-eng",
-        headers = Map("user-agent" -> "TemporaryUserAgent")
+        headers = Map("user-agent" -> "tvrename v1")
       )
       val seasonSearchResults = upickle.default.read[List[SearchResult]](r.text)
       val lastEpisode = seasonSearchResults.map(_.SeriesEpisode.toInt).max
+      // TODO: handle no episodes found for series/season
       logger.debug(s"${jobConfig.seriesName} Season ${seasonInt} has ${lastEpisode} episodes")
 
       fileSystem.makeDirs(targetFolder)

@@ -43,7 +43,7 @@ class RemuxCoreLogic(
         val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
 
         if (episodeMatch.confidence < jobConfig.minimumConfidence) {
-          logger.warn("Confidence too low; will not rename")
+          logger.warn("\t=> Confidence too low; will not rename")
         } else if (targetFile == episode.fileName) {
           logger.info(s"\t=> ${episodeMatch.confidence}% NO CHANGE")
         } else if (dryRun) {
