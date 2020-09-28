@@ -1,12 +1,13 @@
 package tvrename.logic
 
+import cats.effect.IO
 import tvrename._
-import tvrename.config.BroadcastJobConfig
 import tvrename.classifier._
+import tvrename.config.BroadcastJobConfig
 
 class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: BroadcastEpisodeClassifier, logger: Logger)
     extends CoreLogic {
-  def run(): Unit = {
+  def run(): IO[Unit] = IO {
     val unknownEpisodes = classifier.findUnknownEpisodes()
     val episodesForSeason = tvdb.episodesForSeason(config.seriesId, config.seasonNumber)
     val aired = new Aired(episodesForSeason)

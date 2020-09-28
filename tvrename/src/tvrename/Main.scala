@@ -1,51 +1,67 @@
 package tvrename
 
+import cats.effect._
 import pureconfig._
 import pureconfig.generic.auto._
-
-import tvrename.config._
+import pureconfig.module.catseffect.syntax._
 import tvrename.classifier._
+import tvrename.config._
 import tvrename.logic._
 import tvrename.subtitles._
 
-object Main {
-  def main(args: Array[String]): Unit = {
+object Main extends IOApp {
+  override def run(args: List[String]): IO[ExitCode] = {
+
+    resources(args)
+      .use {
+        case (coreLogic) => {
+          coreLogic.run()
+        }
+      }
+      .as(ExitCode.Success)
+  }
+
+  private def resources(args: List[String]): Resource[IO, CoreLogic] = {
     val configFolder =
       sys.env.getOrElse("TVRENAME_CONFIG_FOLDER", s"${System.getProperty("user.home")}/.config/tvrename")
 
-    val config = ConfigSource.file(s"$configFolder/tvrename.conf").load[TVRenameConfig]
-
+    val logger: Logger = LoggerImpl
     val terminalConfig = new TerminalConfig(args)
-    terminalConfig.subcommand map {
-      case terminalConfig.renameCommand =>
-        val jobConfig = ConfigSource.file(terminalConfig.renameCommand.job()).load[JobConfig]
+    val command = terminalConfig.subcommand match {
+      case Some(terminalConfig.renameCommand) => Some(Rename)
+      case Some(terminalConfig.verifyCommand) => Some(Verify)
+      case None => None
+    }
 
-        val fileSystem: FileSystem = FileSystemImpl
-        val logger: Logger = LoggerImpl
-
-        val coreLogic = (config, jobConfig) match {
-          case (Left(failures), _) =>
-            println(failures)
-            None
-          case (_, Left(failures)) =>
-            println(failures)
-            None
-          case (Right(config), Right(jobConfig: BroadcastJobConfig)) => {
-            val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
-            val classifier = new BroadcastEpisodeClassifier(jobConfig, fileSystem)
-            val coreLogic: CoreLogic = new BroadcastCoreLogic(jobConfig, tvdb, classifier, logger)
-            Some(coreLogic)
-          }
-          case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
-            val subtitleDownloader: ReferenceSubtitleDownloader =
-              new ReferenceSubtitleDownloaderImpl(config, jobConfig, fileSystem, logger)
-            val classifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
-            val subtitleExtractor: SubtitleExtractor = new SubtitleExtractorImpl(config, jobConfig, fileSystem, logger)
-            val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem)
-            val subtitleMatcher: SubtitleMatcher = new SubtitleMatcherImpl(config, jobConfig, fileSystem)
-            val coreLogic: CoreLogic =
+    for {
+      blocker <- Blocker[IO]
+      config <- ConfigSource.file(s"$configFolder/tvrename.conf").loadF[IO, TVRenameConfig](blocker).asResource
+      jobConfig <- command match {
+        case Some(Rename) =>
+          ConfigSource.file(terminalConfig.renameCommand.job()).loadF[IO, JobConfig](blocker).asResource
+        case Some(Verify) =>
+          ConfigSource.file(terminalConfig.verifyCommand.job()).loadF[IO, JobConfig](blocker).asResource
+      }
+    } yield {
+      val fileSystem: FileSystem = FileSystemImpl
+      jobConfig match {
+        case broadcastJobConfig: BroadcastJobConfig =>
+          val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
+          val classifier = new BroadcastEpisodeClassifier(broadcastJobConfig, fileSystem)
+          val coreLogic: CoreLogic = new BroadcastCoreLogic(broadcastJobConfig, tvdb, classifier, logger)
+          coreLogic
+        case remuxJobConfig: RemuxJobConfig =>
+          val subtitleDownloader: ReferenceSubtitleDownloader =
+            new ReferenceSubtitleDownloaderImpl(config, remuxJobConfig, fileSystem, logger)
+          val classifier = new RemuxEpisodeClassifier(remuxJobConfig, fileSystem)
+          val subtitleExtractor: SubtitleExtractor =
+            new SubtitleExtractorImpl(config, remuxJobConfig, fileSystem, logger)
+          val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem)
+          val subtitleMatcher: SubtitleMatcher = new SubtitleMatcherImpl(config, remuxJobConfig, fileSystem)
+          val coreLogic: CoreLogic = command match {
+            case Some(Rename) =>
               new RemuxCoreLogic(
-                jobConfig,
+                remuxJobConfig,
                 terminalConfig.renameCommand.dryRun(),
                 classifier,
                 subtitleDownloader,
@@ -55,41 +71,9 @@ object Main {
                 fileSystem,
                 logger
               )
-            Some(coreLogic)
-          }
-        }
-
-        coreLogic.map(_.run())
-      case terminalConfig.verifyCommand =>
-        val jobConfig = ConfigSource.file(terminalConfig.verifyCommand.job()).load[JobConfig]
-
-        val fileSystem: FileSystem = FileSystemImpl
-        val logger: Logger = LoggerImpl
-
-        val coreLogic = (config, jobConfig) match {
-          case (Left(failures), _) =>
-            println(failures)
-            None
-          case (_, Left(failures)) =>
-            println(failures)
-            None
-          case (Right(config), Right(jobConfig: BroadcastJobConfig)) => {
-            val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
-            val classifier = new BroadcastEpisodeClassifier(jobConfig, fileSystem)
-            val coreLogic: CoreLogic = new BroadcastCoreLogic(jobConfig, tvdb, classifier, logger)
-            Some(coreLogic)
-          }
-          case (Right(config), Right(jobConfig: RemuxJobConfig)) => {
-            val subtitleDownloader: ReferenceSubtitleDownloader =
-              new ReferenceSubtitleDownloaderImpl(config, jobConfig, fileSystem, logger)
-            val classifier = new RemuxEpisodeClassifier(jobConfig, fileSystem)
-            val subtitleExtractor: SubtitleExtractor = new SubtitleExtractorImpl(config, jobConfig, fileSystem, logger)
-            val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem)
-            val subtitleMatcher: SubtitleMatcher = new SubtitleMatcherImpl(config, jobConfig, fileSystem)
-            val coreLogic: CoreLogic =
+            case Some(Verify) =>
               new VerifyRemuxCoreLogic(
-                jobConfig,
-                terminalConfig.renameCommand.dryRun(),
+                remuxJobConfig,
                 classifier,
                 subtitleDownloader,
                 subtitleExtractor,
@@ -98,11 +82,10 @@ object Main {
                 fileSystem,
                 logger
               )
-            Some(coreLogic)
           }
-        }
 
-        coreLogic.map(_.run())
+          coreLogic
+      }
     }
   }
 }

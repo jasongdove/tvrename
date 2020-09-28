@@ -1,5 +1,7 @@
 package tvrename.logic
 
+import cats.effect.IO
+
 trait CoreLogic {
-  def run(): Unit
+  def run(): IO[Unit]
 }
