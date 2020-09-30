@@ -16,11 +16,11 @@ trait SubtitleMatcher {
 
 class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fileSystem: FileSystem)
     extends SubtitleMatcher {
-  lazy val referenceSubtitles: Map[String, String] = {
+  lazy val referenceSubtitles: collection.mutable.Map[String, String] = {
     val parser = new SRTParser
     val targetFolder =
       f"${config.cacheFolder}/reference/${jobConfig.seriesName}/Season ${jobConfig.seasonNumber.value}%02d"
-    fileSystem
+    val map = fileSystem
       .walk(targetFolder)
       .filter(_.endsWith(".srt"))
       .map { file =>
@@ -41,6 +41,7 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
         (file, output)
       }
       .toMap
+    collection.mutable.Map(map.toSeq: _*)
   }
 
   override def matchToReference(episodeLines: List[String]): Option[EpisodeMatch] = {
@@ -58,8 +59,11 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
     val confidence = (topMatch._1.toDouble / episodeLines.size * 100).toInt
     val pattern = ".*s([\\d]{2})e([\\d]{2}).*".r
     topMatch._2 match {
-      case pattern(season, episode) => Some(EpisodeMatch(season.toInt, episode.toInt, confidence))
-      case _                        => None
+      case pattern(season, episode) =>
+        referenceSubtitles -= topMatch._2
+        Some(EpisodeMatch(season.toInt, episode.toInt, confidence))
+      case _ =>
+        None
     }
   }
 }
