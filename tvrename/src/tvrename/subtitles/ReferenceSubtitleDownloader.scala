@@ -53,7 +53,8 @@ class ReferenceSubtitleDownloaderImpl(
       headers = Map("user-agent" -> "tvrename v1")
     )
 
-    upickle.default.read[List[SearchResult]](r.text)
+    upickle.default
+      .read[List[SearchResult]](r.text)
       .filterNot(_.SubFileName.toLowerCase.contains(".ita.")) // sometimes the wrong language is returned ???
       .filter(_.SubFormat.toLowerCase == "srt")
       .groupBy(_.SeriesEpisode.toInt)
@@ -74,38 +75,39 @@ class ReferenceSubtitleDownloaderImpl(
 
       val parser = new SRTParser
 
-      seasonSearchResults.foreach { case (episodeNumber, searchResults) =>
-        val sortedSearchResults = searchResults
-          .sortBy(_.isWebDL)(Ordering[Boolean].reverse)
-          .sortBy(_.Score)(Ordering[Double].reverse)
+      seasonSearchResults.foreach {
+        case (episodeNumber, searchResults) =>
+          val sortedSearchResults = searchResults
+            .sortBy(_.isWebDL)(Ordering[Boolean].reverse)
+            .sortBy(_.Score)(Ordering[Double].reverse)
 
-        val template = jobConfig.template
-          .replace("[series]", jobConfig.seriesName)
-          .replace("[season]", f"${seasonInt}%02d")
-          .replace("[episode]", f"${episodeNumber}%02d")
+          val template = jobConfig.template
+            .replace("[series]", jobConfig.seriesName)
+            .replace("[season]", f"${seasonInt}%02d")
+            .replace("[episode]", f"${episodeNumber}%02d")
 
-        val targetFile = f"${targetFolder}/${template}.srt"
-        if (!fileSystem.exists(targetFile)) {
-          val tempFile = fileSystem.getTempFileName()
+          val targetFile = f"${targetFolder}/${template}.srt"
+          if (!fileSystem.exists(targetFile)) {
+            val tempFile = fileSystem.getTempFileName()
 
-          val validSubtitle = sortedSearchResults.find { subtitle =>
-            logger.debug(subtitle.SubDownloadLink)
-            val downloadAndParseAttempt = Try {
-              val stream = requests.get.stream(subtitle.SubDownloadLink, check = false)
-              fileSystem.streamCommandToFile(stream, "gunzip", tempFile)
-              parser.parse(new File(tempFile))
+            val validSubtitle = sortedSearchResults.find { subtitle =>
+              logger.debug(subtitle.SubDownloadLink)
+              val downloadAndParseAttempt = Try {
+                val stream = requests.get.stream(subtitle.SubDownloadLink, check = false)
+                fileSystem.streamCommandToFile(stream, "gunzip", tempFile)
+                parser.parse(new File(tempFile))
+              }
+              downloadAndParseAttempt.isSuccess
             }
-            downloadAndParseAttempt.isSuccess
-          }
 
-          validSubtitle match {
-            case Some(subtitle) =>
-              logger.debug(targetFile)
-              fileSystem.rename(tempFile, targetFile)
-            case None =>
-              logger.warn(s"Unable to locate valid subtitle for episode ${episodeNumber}")
+            validSubtitle match {
+              case Some(subtitle) =>
+                logger.debug(targetFile)
+                fileSystem.rename(tempFile, targetFile)
+              case None =>
+                logger.warn(s"Unable to locate valid subtitle for episode ${episodeNumber}")
+            }
           }
-        }
       }
     }
 

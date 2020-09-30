@@ -2,11 +2,12 @@ package tvrename.classifier
 
 import tvrename._
 import tvrename.config._
+import cats.effect.IO
 
 trait UnknownEpisode { def fileName: String }
 
 abstract case class EpisodeClassifier[A <: UnknownEpisode](jobConfig: JobConfig, fileSystem: FileSystem) {
-  def findUnknownEpisodes(): Seq[A]
+  def findUnknownEpisodes(): IO[Seq[A]]
 
   def renameEpisode(
     episode: A,

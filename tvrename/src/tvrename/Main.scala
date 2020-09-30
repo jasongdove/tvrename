@@ -30,7 +30,7 @@ object Main extends IOApp {
     val commandIO: IO[Command] = terminalConfig.subcommand match {
       case Some(terminalConfig.renameCommand) => IO(Rename)
       case Some(terminalConfig.verifyCommand) => IO(Verify)
-      case None => IO.raiseError(new Exception())
+      case _                                  => IO.raiseError(new Exception())
     }
 
     for {

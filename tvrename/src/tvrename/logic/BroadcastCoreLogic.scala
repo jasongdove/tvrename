@@ -7,19 +7,23 @@ import tvrename.config.BroadcastJobConfig
 
 class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: BroadcastEpisodeClassifier, logger: Logger)
     extends CoreLogic {
-  def run(): IO[Unit] = IO {
-    val unknownEpisodes = classifier.findUnknownEpisodes()
-    val episodesForSeason = tvdb.episodesForSeason(config.seriesId, config.seasonNumber)
-    val aired = new Aired(episodesForSeason)
+  def run(): IO[Unit] =
+    IO {
+      for {
+        unknownEpisodes <- classifier.findUnknownEpisodes()
+      } yield {
+        val episodesForSeason = tvdb.episodesForSeason(config.seriesId, config.seasonNumber)
+        val aired = new Aired(episodesForSeason)
 
-    unknownEpisodes.foreach {
-      case episode @ aired(episodeNumber) =>
-        val (originalName, newName) = classifier.renameEpisode(episode, config.seasonNumber, episodeNumber)
-        logger.info(s"Moved $originalName to $newName")
-      case episode =>
-        logger.warn(s"Unable to find episode number for ${episode.fileName}")
+        unknownEpisodes.foreach {
+          case episode @ aired(episodeNumber) =>
+            val (originalName, newName) = classifier.renameEpisode(episode, config.seasonNumber, episodeNumber)
+            logger.info(s"Moved $originalName to $newName")
+          case episode =>
+            logger.warn(s"Unable to find episode number for ${episode.fileName}")
+        }
+      }
     }
-  }
 }
 
 class Aired(episodes: Seq[EpisodeData]) {

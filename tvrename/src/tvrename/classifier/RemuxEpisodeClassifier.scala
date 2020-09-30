@@ -7,6 +7,7 @@ import tvrename._
 import tvrename.config._
 import tvrename.subtitles.OpenSubtitlesHasher
 import java.io.File
+import cats.effect.IO
 
 case class UnknownRemuxEpisode(fileName: String) extends UnknownEpisode {
   lazy val movieHash = OpenSubtitlesHasher.computeHash(new File(fileName))
@@ -14,16 +15,18 @@ case class UnknownRemuxEpisode(fileName: String) extends UnknownEpisode {
 
 class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownRemuxEpisode](jobConfig, fileSystem) {
-  def findUnknownEpisodes(): Seq[UnknownRemuxEpisode] = {
-    val validExtensions = List(".mkv")
-    val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{2})\..*""".r
+  def findUnknownEpisodes(): IO[Seq[UnknownRemuxEpisode]] =
+    IO {
+      val validExtensions = List(".mkv")
+      val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{2})\..*""".r
 
-    def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
-    def isUnknown(fileName: String) = !knownPattern.matches(fileName)
+      def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
+      def isUnknown(fileName: String) = !knownPattern.matches(fileName)
 
-    fileSystem
-      .walk(jobConfig.mediaFolder, jobConfig.recursive)
-      .filter(f => isValid(f) && (command == Verify || isUnknown(f)))
-      .map(f => UnknownRemuxEpisode(f))
-  }
+      fileSystem
+        .walk(jobConfig.mediaFolder, jobConfig.recursive)
+        .filter(isValid)
+        .filter(command == Verify || isUnknown(_))
+        .map(UnknownRemuxEpisode)
+    }
 }
