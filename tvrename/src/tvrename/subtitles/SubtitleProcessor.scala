@@ -5,14 +5,30 @@ import tvrename.config.TVRenameConfig
 import com.github.dnbn.submerge.api.parser.SRTParser
 import java.io.File
 import collection.JavaConverters._
+import cats.effect.IO
+
+case class UnknownProcessedSubtitledEpisode(fileName: String, lines: List[String])
 
 trait SubtitleProcessor {
+  def processEpisodes(episodes: List[UnknownSubtitledEpisode]): IO[List[UnknownProcessedSubtitledEpisode]]
   def convertToLines(subtitles: Subtitles): List[String]
   def cleanLines(lines: List[String]): List[String]
 }
 
 class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem) extends SubtitleProcessor {
   val subripParser = new SRTParser
+
+  def processEpisodes(episodes: List[UnknownSubtitledEpisode]): IO[List[UnknownProcessedSubtitledEpisode]] =
+    IO {
+      episodes.map { episode =>
+        val processedLines = episode.subtitles
+          .map(convertToLines)
+          .map(cleanLines)
+          .getOrElse(List.empty)
+
+        UnknownProcessedSubtitledEpisode(episode.fileName, processedLines)
+      }
+    }
 
   def convertToLines(subtitles: Subtitles): List[String] = {
     subtitles match {

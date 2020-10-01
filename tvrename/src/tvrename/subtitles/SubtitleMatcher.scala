@@ -7,10 +7,14 @@ import scala.util.Try
 import java.io.File
 import scala.util.Success
 import scala.jdk.CollectionConverters._
+import cats.effect.IO
+import scala.util.matching.Regex.Match
 
 case class EpisodeMatch(seasonNumber: Int, episodeNumber: Int, confidence: Int)
+case class MatchedSubtitledEpisode(fileName: String, seasonNumber: Int, episodeNumber: Int, confidence: Int)
 
 trait SubtitleMatcher {
+  def matchEpisodes(episodes: List[UnknownProcessedSubtitledEpisode]): IO[List[MatchedSubtitledEpisode]]
   def matchToReference(episodeLines: List[String]): Option[EpisodeMatch]
 }
 
@@ -44,6 +48,22 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
     collection.mutable.Map(map.toSeq: _*)
   }
 
+  override def matchEpisodes(episodes: List[UnknownProcessedSubtitledEpisode]): IO[List[MatchedSubtitledEpisode]] =
+    IO {
+      val allMatches = for {
+        episode <- episodes
+        episodeMatch = matchToReference(episode.lines)
+      } yield {
+        episodeMatch match {
+          case Some(em) =>
+            Some(MatchedSubtitledEpisode(episode.fileName, em.seasonNumber, em.episodeNumber, em.confidence))
+          case None => None
+        }
+      }
+
+      allMatches.flatten
+    }
+
   override def matchToReference(episodeLines: List[String]): Option[EpisodeMatch] = {
     val rankedMatches = referenceSubtitles
       .map {
@@ -60,7 +80,7 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
     val pattern = ".*s([\\d]{2})e([\\d]{2}).*".r
     topMatch._2 match {
       case pattern(season, episode) =>
-        referenceSubtitles -= topMatch._2
+        if (confidence > jobConfig.minimumConfidence) referenceSubtitles -= topMatch._2
         Some(EpisodeMatch(season.toInt, episode.toInt, confidence))
       case _ =>
         None

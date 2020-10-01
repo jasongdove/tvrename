@@ -15,7 +15,7 @@ case class UnknownRemuxEpisode(fileName: String) extends UnknownEpisode {
 
 class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownRemuxEpisode](jobConfig, fileSystem) {
-  def findUnknownEpisodes(): IO[Seq[UnknownRemuxEpisode]] =
+  def findUnknownEpisodes(): IO[List[UnknownRemuxEpisode]] =
     IO {
       val validExtensions = List(".mkv")
       val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{2})\..*""".r
@@ -28,5 +28,6 @@ class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSy
         .filter(isValid)
         .filter(command == Verify || isUnknown(_))
         .map(UnknownRemuxEpisode)
+        .toList
     }
 }

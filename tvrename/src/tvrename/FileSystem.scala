@@ -1,6 +1,7 @@
 package tvrename
 
 import os.copy.over
+import cats.effect.IO
 
 trait FileSystem {
   def walk(path: String, recursive: Boolean = false): IndexedSeq[String]
@@ -15,7 +16,7 @@ trait FileSystem {
   def call(command: String*)
   def readLines(path: String): Seq[String]
   def getFileName(path: String): String
-  def writeToFile(path: String, contents: String)
+  def writeToFile(path: String, contents: String): IO[Unit]
   def concatPaths(one: String, two: String): String
 }
 
@@ -53,8 +54,8 @@ object FileSystemImpl extends FileSystem {
     s"${p.baseName}.${p.ext}"
   }
 
-  override def writeToFile(path: String, contents: String): Unit =
-    os.write.over(os.Path(path), contents)
+  override def writeToFile(path: String, contents: String): IO[Unit] =
+    IO(os.write.over(os.Path(path), contents))
 
   override def concatPaths(one: String, two: String): String =
     (os.Path(one) / two).toString

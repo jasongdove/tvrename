@@ -1,6 +1,7 @@
 package tvrename.logic
 
 import cats.effect.IO
+import cats.implicits._
 import tvrename._
 import tvrename.classifier._
 import tvrename.config._
@@ -10,64 +11,65 @@ class RemuxCoreLogic(
   jobConfig: RemuxJobConfig,
   dryRun: Boolean,
   classifier: RemuxEpisodeClassifier,
-  subtitleDownloader: ReferenceSubtitleDownloader,
-  subtitleExtractor: SubtitleExtractor,
-  subtitleProcessor: SubtitleProcessor,
-  subtitleMatcher: SubtitleMatcher,
+  downloader: ReferenceSubtitleDownloader,
+  extractor: SubtitleExtractor,
+  processor: SubtitleProcessor,
+  matcher: SubtitleMatcher,
   fileSystem: FileSystem,
   logger: Logger
 ) extends CoreLogic {
   def run(): IO[Unit] =
-    IO {
+    for {
+      _ <- downloader.download()
+      unknownEpisodes <- classifier.findUnknownEpisodes()
+      subtitledEpisodes <- extractor.extractFromEpisodes(unknownEpisodes)
+      processedSubtitledEpisodes <- processor.processEpisodes(subtitledEpisodes)
+      matchedEpisodes <- matcher.matchEpisodes(processedSubtitledEpisodes)
+      _ <- renameEpisodes(matchedEpisodes)
+    } yield ()
 
-      val matchedEpisodes = for {
-        _ <- subtitleDownloader.download()
-        unknownEpisodes <- classifier.findUnknownEpisodes()
-        matchedEpisodes <- matchEpisodes(unknownEpisodes)
-      } yield matchedEpisodes
-      
+  def renameEpisodes(episodes: List[MatchedSubtitledEpisode]): IO[Unit] =
+    episodes.map { episode =>
       for {
-        episode <- matchedEpisodes
-      } yield {
-        matchedEpisodes.toSeq.sortBy(_._1.fileName).foreach {
-          case (episode, episodeMatch) =>
-            logger.info(fileSystem.getFileName(episode.fileName))
+        _ <- logger.info(fileSystem.getFileName(episode.fileName))
+        _ <- renameEpisode(episode)
+      } yield ()
+    }.sequence_
 
-            val template = jobConfig.template
-              .replace("[series]", jobConfig.seriesName)
-              .replace("[season]", f"${episodeMatch.seasonNumber}%02d")
-              .replace("[episode]", f"${episodeMatch.episodeNumber}%02d")
+  def renameEpisode(episode: MatchedSubtitledEpisode): IO[Unit] = {
+      val template = jobConfig.template
+      .replace("[series]", jobConfig.seriesName)
+      .replace("[season]", f"${episode.seasonNumber}%02d")
+      .replace("[episode]", f"${episode.episodeNumber}%02d")
 
-            val insertIndex = episode.fileName.lastIndexOf('.')
-            val ext = episode.fileName.substring(insertIndex)
-            val newFileName = template + ext
-            val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
+      val insertIndex = episode.fileName.lastIndexOf('.')
+      val ext = episode.fileName.substring(insertIndex)
+      val newFileName = template + ext
+      val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
 
-            if (episodeMatch.confidence < jobConfig.minimumConfidence) {
-              logger.warn(s"\t=> ${episodeMatch.confidence}% confidence too low; will not rename")
-            } else if (targetFile == episode.fileName) {
-              logger.info(s"\t=> ${episodeMatch.confidence}% NO CHANGE")
-            } else if (dryRun) {
-              logger.info(s"\t=> ${episodeMatch.confidence}% DRY RUN => ${template}")
-            } else {
-              logger.info(s"\t=> ${episodeMatch.confidence}% ${newFileName}")
-              fileSystem.rename(episode.fileName, targetFile)
-            }
-        }
+      if (episode.confidence < jobConfig.minimumConfidence) {
+        logger.warn(s"\t=> ${episode.confidence}% confidence too low; will not rename")
+      } else if (targetFile == episode.fileName) {
+        logger.info(s"\t=> ${episode.confidence}% NO CHANGE")
+      } else if (dryRun) {
+        logger.info(s"\t=> ${episode.confidence}% DRY RUN => ${template}")
+      } else {
+        fileSystem.rename(episode.fileName, targetFile)
+        logger.info(s"\t=> ${episode.confidence}% ${newFileName}")
       }
     }
 
-  def matchEpisodes(unknownEpisodes: Seq[UnknownRemuxEpisode]): IO[Seq[(UnknownRemuxEpisode, EpisodeMatch)]] =
-    IO {
-      unknownEpisodes.flatMap { episode =>
-        subtitleExtractor
-          .extractFromEpisode(episode)
-          .map(subtitleProcessor.convertToLines)
-          .map(subtitleProcessor.cleanLines)
-          .flatMap(subtitleMatcher.matchToReference)
-          .map(episode -> _)
-      }.sortBy(_._1.fileName)
-    }
+  // def matchEpisodes(unknownEpisodes: Seq[UnknownRemuxEpisode]): IO[Seq[(UnknownRemuxEpisode, EpisodeMatch)]] =
+  //   IO {
+  //     unknownEpisodes.flatMap { episode =>
+  //       subtitleExtractor
+  //         .extractFromEpisode(episode)
+  //         .map(subtitleProcessor.convertToLines)
+  //         .map(subtitleProcessor.cleanLines)
+  //         .flatMap(subtitleMatcher.matchToReference)
+  //         .map(episode -> _)
+  //     }.sortBy(_._1.fileName)
+  //   }
 }
 
 trait MatchStatus

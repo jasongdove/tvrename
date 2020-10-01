@@ -7,7 +7,7 @@ import cats.effect.IO
 trait UnknownEpisode { def fileName: String }
 
 abstract case class EpisodeClassifier[A <: UnknownEpisode](jobConfig: JobConfig, fileSystem: FileSystem) {
-  def findUnknownEpisodes(): IO[Seq[A]]
+  def findUnknownEpisodes(): IO[List[A]]
 
   def renameEpisode(
     episode: A,

@@ -11,7 +11,7 @@ case class UnknownBroadcastEpisode(fileName: String, date: LocalDate) extends Un
 
 class BroadcastEpisodeClassifier(jobConfig: BroadcastJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownBroadcastEpisode](jobConfig, fileSystem) {
-  def findUnknownEpisodes(): IO[Seq[UnknownBroadcastEpisode]] =
+  def findUnknownEpisodes(): IO[List[UnknownBroadcastEpisode]] =
     IO {
       val validExtensions = List(".mkv", ".ts")
       val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
@@ -33,5 +33,6 @@ class BroadcastEpisodeClassifier(jobConfig: BroadcastJobConfig, fileSystem: File
         .filter(isValid)
         .filter(isUnknown)
         .map(f => UnknownBroadcastEpisode(f, dateBroadcasted(f)))
+        .toList
     }
 }
