@@ -6,7 +6,7 @@ import cats.effect.IO
 trait FileSystem {
   def walk(path: String, recursive: Boolean = false): IndexedSeq[String]
   def getModifyTime(path: String): Long
-  def rename(source: String, dest: String): Unit
+  def rename(source: String, dest: String): IO[Unit]
   def absoluteToRelative(path: String, relativeTo: String): String
   def relativeTo(path: String, relativeTo: String): String
   def makeDirs(path: String): Unit
@@ -26,8 +26,8 @@ object FileSystemImpl extends FileSystem {
 
   override def getModifyTime(path: String): Long = os.mtime(os.Path(path))
 
-  override def rename(source: String, dest: String): Unit =
-    os.move(os.Path(source), os.Path(dest), replaceExisting = true)
+  override def rename(source: String, dest: String): IO[Unit] =
+    IO(os.move(os.Path(source), os.Path(dest), replaceExisting = true))
 
   override def absoluteToRelative(path: String, relativeTo: String): String =
     (os.Path(relativeTo) / os.up / os.RelPath(path)).toString

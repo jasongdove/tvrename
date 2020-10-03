@@ -45,6 +45,8 @@ class ReferenceSubtitleDownloaderImpl(
 
   private val episodeCountFile = s"${targetFolder}/.episode-count"
 
+  private val parser = new SRTParser
+
   private def expectedEpisodeCount: IO[Option[Int]] =
     IO(
       if (fileSystem.exists(episodeCountFile)) fileSystem.readLines(episodeCountFile).headOption.map(_.toInt) else None
@@ -64,8 +66,9 @@ class ReferenceSubtitleDownloaderImpl(
         .filterNot(_.SubFileName.toLowerCase.contains(".ita.")) // sometimes the wrong language is returned ???
         .filter(_.SubFormat.toLowerCase == "srt")
         .groupBy(_.SeriesEpisode.toInt)
-        .map { case (k,  v) => EpisodeSearchResults(k, v) }
+        .map { case (k, v) => EpisodeSearchResults(k, v) }
         .toList
+        .sortBy(_.episodeNumber)
     }
 
   override def download(): IO[Unit] =
@@ -84,7 +87,8 @@ class ReferenceSubtitleDownloaderImpl(
           searchResults <- search()
           // TODO: handle no episodes found for series/season
           lastEpisode = searchResults.map(_.episodeNumber).max
-          _ <- logger.debug(s"${jobConfig.seriesName} Season ${jobConfig.seasonNumber.value} has ${lastEpisode} episodes")
+          _ <-
+            logger.debug(s"${jobConfig.seriesName} Season ${jobConfig.seasonNumber.value} has ${lastEpisode} episodes")
           _ <- fileSystem.writeToFile(episodeCountFile, lastEpisode.toString)
           _ <- downloadAllEpisodes(searchResults)
         } yield ()
@@ -92,43 +96,50 @@ class ReferenceSubtitleDownloaderImpl(
   }
 
   private def downloadAllEpisodes(seasonSearchResults: List[EpisodeSearchResults]): IO[Unit] = {
-    val parser = new SRTParser
+    seasonSearchResults.traverse_ { episode =>
+      val sortedSearchResults = episode.searchResults
+        .sortBy(_.isWebDL)(Ordering[Boolean].reverse)
+        .sortBy(_.Score)(Ordering[Double].reverse)
 
-    seasonSearchResults.map { episode =>
-        val sortedSearchResults = episode.searchResults
-          .sortBy(_.isWebDL)(Ordering[Boolean].reverse)
-          .sortBy(_.Score)(Ordering[Double].reverse)
+      val template = jobConfig.template
+        .replace("[series]", jobConfig.seriesName)
+        .replace("[season]", f"${jobConfig.seasonNumber.value}%02d")
+        .replace("[episode]", f"${episode.episodeNumber}%02d")
 
-        val template = jobConfig.template
-          .replace("[series]", jobConfig.seriesName)
-          .replace("[season]", f"${jobConfig.seasonNumber.value}%02d")
-          .replace("[episode]", f"${episode.episodeNumber}%02d")
+      val targetFile = f"${targetFolder}/${template}.srt"
 
-        val targetFile = f"${targetFolder}/${template}.srt"
-
-        if (!fileSystem.exists(targetFile)) {
-          val tempFile = fileSystem.getTempFileName()
-
-          val validSubtitle = sortedSearchResults.find { subtitle =>
-            logger.debug(subtitle.SubDownloadLink)
-            val downloadAndParseAttempt = Try {
-              val stream = requests.get.stream(subtitle.SubDownloadLink, check = false)
-              fileSystem.streamCommandToFile(stream, "gunzip", tempFile)
-              parser.parse(new File(tempFile))
-            }
-            downloadAndParseAttempt.isSuccess
-          }
-
-          validSubtitle match {
-            case Some(subtitle) =>
-              logger.debug(targetFile)
-              fileSystem.rename(tempFile, targetFile)
+      if (!fileSystem.exists(targetFile)) {
+        downloadValidSubtitleForEpisode(sortedSearchResults).flatMap { tempFile =>
+          tempFile match {
+            case Some(fileName) =>
+              for {
+                _ <- logger.debug(targetFile)
+                _ <- fileSystem.rename(fileName, targetFile)
+              } yield ()
             case None =>
               logger.warn(s"Unable to locate valid subtitle for episode ${episode.episodeNumber}")
           }
         }
+      } else IO.unit
+    }
+  }
 
-        IO.unit
-    }.sequence_
+  def downloadValidSubtitleForEpisode(searchResults: List[SearchResult]): IO[Option[String]] = {
+    searchResults.foldLeft[IO[Option[String]]](IO(None)) { (acc, next) =>
+      acc.flatMap {
+        case Some(str) => IO(Some(str))
+        case None => downloadAndParseSubtitle(next)
+      }
+    }
+  }
+
+  def downloadAndParseSubtitle(searchResult: SearchResult): IO[Option[String]] = {
+    val tempFile = fileSystem.getTempFileName()
+    for {
+      _ <- logger.debug(searchResult.SubDownloadLink)
+      stream <- IO(requests.get.stream(searchResult.SubDownloadLink, check = false))
+      _ <- IO(fileSystem.streamCommandToFile(stream, "gunzip", tempFile))
+      attempt <- Try { parser.parse(new File(tempFile)) }.attempt.liftTo[IO]
+    } yield attempt.map(_ => tempFile).toOption
   }
 }
