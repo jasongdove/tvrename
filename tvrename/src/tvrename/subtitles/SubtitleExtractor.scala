@@ -9,6 +9,7 @@ import org.ebml.matroska.MatroskaFileTrack.TrackType
 import java.io.File
 import cats.effect.IO
 import cats.implicits._
+import os.temp
 
 case class UnknownSubtitledEpisode(fileName: String, subtitles: Option[Subtitles])
 
@@ -59,23 +60,36 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
     episode: UnknownRemuxEpisode,
     subtitles: Option[SubtitlesTrack]
   ): IO[Option[Subtitles]] =
-    IO {
-      subtitles match {
-        case Some(subtitlesTrack) =>
-          if (!subtitlesTrack.subtitles.fileNames.forall(fileSystem.exists)) {
-            logger.debug(
-              s"\tExtracting track ${subtitlesTrack.trackNumber} of type ${subtitlesTrack.subtitles.getClass.getSimpleName}"
+    subtitles match {
+      case Some(subtitlesTrack) =>
+        if (!subtitlesTrack.subtitles.fileNames.forall(fileSystem.exists)) {
+          val trackType = subtitlesTrack.subtitles.getClass.getSimpleName
+          val tempFileName = fileSystem.getTempFileName.replace(".", "")
+
+          for {
+            _ <- logger.debug(fileSystem.getFileName(episode.fileName))
+            _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber} of type $trackType")
+            _ <- IO(
+              fileSystem.call(
+                "mkvextract",
+                episode.fileName,
+                "tracks",
+                s"${subtitlesTrack.trackNumber}:${tempFileName}"
+              )
             )
-            val tempFileName = fileSystem.getTempFileName.replace(".", "")
-            fileSystem.call("mkvextract", episode.fileName, "tracks", s"${subtitlesTrack.trackNumber}:${tempFileName}")
-            val appendExtension = subtitlesTrack.subtitles.extensions.size > 1
-            subtitlesTrack.subtitles.extensions.foreach { extension =>
-              val sourceFileName = if (appendExtension) s"${tempFileName}.${extension}" else tempFileName
-              fileSystem.rename(sourceFileName, s"${subtitlesTrack.subtitles.baseFileName}.${extension}")
-            }
-          }
-          Some(subtitlesTrack.subtitles)
-        case None => None
-      }
+            _ <- renameTempFiles(subtitlesTrack, tempFileName)
+          } yield Some(subtitlesTrack.subtitles)
+        } else {
+          IO(Some(subtitlesTrack.subtitles))
+        }
+      case None => IO(None)
     }
+
+  private def renameTempFiles(subtitlesTrack: SubtitlesTrack, tempFileName: String): IO[Unit] = {
+    val appendExtension = subtitlesTrack.subtitles.extensions.size > 1
+    subtitlesTrack.subtitles.extensions.toList.traverse_ { extension =>
+      val sourceFileName = if (appendExtension) s"$tempFileName.$extension" else tempFileName
+      fileSystem.rename(sourceFileName, s"${subtitlesTrack.subtitles.baseFileName}.${extension}")
+    }
+  }
 }

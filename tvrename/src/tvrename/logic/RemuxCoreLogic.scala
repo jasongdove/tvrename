@@ -27,7 +27,6 @@ class RemuxCoreLogic(
       matchedEpisodes <- matcher.matchEpisodes(processedSubtitledEpisodes)
       _ <- renameEpisodes(matchedEpisodes)
     } yield ()
-
   def renameEpisodes(episodes: List[MatchedSubtitledEpisode]): IO[Unit] =
     episodes.map { episode =>
       for {
@@ -54,22 +53,12 @@ class RemuxCoreLogic(
       } else if (dryRun) {
         logger.info(s"\t=> ${episode.confidence}% DRY RUN => ${template}")
       } else {
-        fileSystem.rename(episode.fileName, targetFile)
-        logger.info(s"\t=> ${episode.confidence}% ${newFileName}")
+        for {
+          _ <- logger.info(s"\t=> ${episode.confidence}% ${newFileName}")
+          _ <- fileSystem.rename(episode.fileName, targetFile)
+        } yield ()
       }
     }
-
-  // def matchEpisodes(unknownEpisodes: Seq[UnknownRemuxEpisode]): IO[Seq[(UnknownRemuxEpisode, EpisodeMatch)]] =
-  //   IO {
-  //     unknownEpisodes.flatMap { episode =>
-  //       subtitleExtractor
-  //         .extractFromEpisode(episode)
-  //         .map(subtitleProcessor.convertToLines)
-  //         .map(subtitleProcessor.cleanLines)
-  //         .flatMap(subtitleMatcher.matchToReference)
-  //         .map(episode -> _)
-  //     }.sortBy(_._1.fileName)
-  //   }
 }
 
 trait MatchStatus

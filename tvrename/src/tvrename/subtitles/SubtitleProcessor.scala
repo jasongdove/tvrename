@@ -6,44 +6,42 @@ import com.github.dnbn.submerge.api.parser.SRTParser
 import java.io.File
 import collection.JavaConverters._
 import cats.effect.IO
+import cats.implicits._
+import cats.syntax._
 
 case class UnknownProcessedSubtitledEpisode(fileName: String, lines: List[String])
 
 trait SubtitleProcessor {
   def processEpisodes(episodes: List[UnknownSubtitledEpisode]): IO[List[UnknownProcessedSubtitledEpisode]]
-  def convertToLines(subtitles: Subtitles): List[String]
-  def cleanLines(lines: List[String]): List[String]
 }
 
 class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem) extends SubtitleProcessor {
   val subripParser = new SRTParser
 
   def processEpisodes(episodes: List[UnknownSubtitledEpisode]): IO[List[UnknownProcessedSubtitledEpisode]] =
-    IO {
-      episodes.map { episode =>
-        val processedLines = episode.subtitles
-          .map(convertToLines)
-          .map(cleanLines)
-          .getOrElse(List.empty)
-
-        UnknownProcessedSubtitledEpisode(episode.fileName, processedLines)
+    episodes.traverse { episode =>
+      episode.subtitles match {
+        case Some(subtitles) =>
+          for {
+            lines <- convertToLines(subtitles)
+            cleanedLines = cleanLines(lines)
+          } yield UnknownProcessedSubtitledEpisode(episode.fileName, cleanedLines)
+        case None => IO(UnknownProcessedSubtitledEpisode(episode.fileName, List.empty))
       }
     }
 
-  def convertToLines(subtitles: Subtitles): List[String] = {
+  private def convertToLines(subtitles: Subtitles): IO[List[String]] = {
     subtitles match {
       case pgs @ PGS(_) =>
-        val subRip = ocr(pgs)
-        readLinesFromFile(subRip.primaryFileName)
+        ocr(pgs).flatMap(subRip => readLinesFromFile(subRip.primaryFileName))
       case vob @ VobSub(_) =>
-        val subRip = ocr(vob)
-        readLinesFromFile(subRip.primaryFileName)
+        ocr(vob).flatMap(subRip => readLinesFromFile(subRip.primaryFileName))
       case subRip @ SubRip(_) =>
         readLinesFromFile(subRip.primaryFileName)
     }
   }
 
-  def cleanLines(lines: List[String]): List[String] = {
+  private def cleanLines(lines: List[String]): List[String] = {
     val whitespace = "[\\s]*".r
     val badApostrophe = "(?<=\\w)\\s*['’](?=\\w)".r
     val namesAndDashes = "-[\\s\\w\\d#]*[:\\s]*".r
@@ -66,39 +64,42 @@ class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem) 
       }
   }
 
-  private def ocr(subtitles: PGS): SubRip = {
-    val subRip = SubRip(subtitles.baseFileName)
-    if (!fileSystem.exists(subRip.primaryFileName)) {
-      fileSystem.call(
-        "docker",
-        "run",
-        "--user",
-        "1000:1000",
-        "--rm",
-        "-v",
-        s"${config.cacheFolder}:/data",
-        "-e",
-        s"INPUT=/data/${fileSystem.relativeTo(subtitles.primaryFileName, config.cacheFolder)}",
-        "-e",
-        s"OUTPUT=/data/${fileSystem.relativeTo(subRip.primaryFileName, config.cacheFolder)}",
-        "-e",
-        "LANGUAGE=eng",
-        "local/pgstosrt"
-      )
+  private def ocr(subtitles: PGS): IO[SubRip] =
+    IO {
+      val subRip = SubRip(subtitles.baseFileName)
+      if (!fileSystem.exists(subRip.primaryFileName)) {
+        fileSystem.call(
+          "docker",
+          "run",
+          "--user",
+          "1000:1000",
+          "--rm",
+          "-v",
+          s"${config.cacheFolder}:/data",
+          "-e",
+          s"INPUT=/data/${fileSystem.relativeTo(subtitles.primaryFileName, config.cacheFolder)}",
+          "-e",
+          s"OUTPUT=/data/${fileSystem.relativeTo(subRip.primaryFileName, config.cacheFolder)}",
+          "-e",
+          "LANGUAGE=eng",
+          "local/pgstosrt"
+        )
+      }
+      subRip
     }
-    subRip
-  }
 
-  private def ocr(subtitles: VobSub): SubRip = {
-    val subRip = SubRip(subtitles.baseFileName)
-    if (!fileSystem.exists(subRip.primaryFileName)) {
-      fileSystem.call("vobsub2srt", "-l", "en", subtitles.baseFileName)
+  private def ocr(subtitles: VobSub): IO[SubRip] =
+    IO {
+      val subRip = SubRip(subtitles.baseFileName)
+      if (!fileSystem.exists(subRip.primaryFileName)) {
+        fileSystem.call("vobsub2srt", "-l", "en", subtitles.baseFileName)
+      }
+      subRip
     }
-    subRip
-  }
 
-  private def readLinesFromFile(fileName: String): List[String] = {
-    val subtitles = subripParser.parse(new File(fileName))
-    subtitles.getLines.asScala.toList.flatMap(_.getTextLines.asScala.toList)
-  }
+  private def readLinesFromFile(fileName: String): IO[List[String]] =
+    IO {
+      val subtitles = subripParser.parse(new File(fileName))
+      subtitles.getLines.asScala.toList.flatMap(_.getTextLines.asScala.toList)
+    }
 }
