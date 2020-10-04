@@ -28,6 +28,7 @@ class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSy
         .filter(isValid)
         .filter(command == Verify || isUnknown(_))
         .map(UnknownRemuxEpisode)
+        .sortBy(_.fileName)
         .toList
     }
 }
