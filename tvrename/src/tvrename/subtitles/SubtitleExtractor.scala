@@ -14,7 +14,7 @@ import os.temp
 case class UnknownSubtitledEpisode(fileName: String, subtitles: Option[Subtitles])
 
 trait SubtitleExtractor {
-  def extractFromEpisodes(episodes: List[UnknownRemuxEpisode]): IO[List[UnknownSubtitledEpisode]]
+  def extractFromEpisode(episode: UnknownRemuxEpisode): IO[UnknownSubtitledEpisode]
 }
 
 class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fileSystem: FileSystem, logger: Logger)
@@ -27,13 +27,11 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
       Subtitles.fromTrack(track, baseFileName).map(SubtitlesTrack(track.getTrackNo - 1, _))
   }
 
-  def extractFromEpisodes(episodes: List[UnknownRemuxEpisode]): IO[List[UnknownSubtitledEpisode]] =
-    episodes.traverse { episode =>
-      for {
-        subtitlesTrack <- identifySubtitlesTrack(episode)
-        extracted <- extractFromEpisode(episode, subtitlesTrack)
-      } yield UnknownSubtitledEpisode(episode.fileName, extracted)
-    }
+  def extractFromEpisode(episode: UnknownRemuxEpisode): IO[UnknownSubtitledEpisode] =
+    for {
+      subtitlesTrack <- identifySubtitlesTrack(episode)
+      extracted <- extractFromEpisode(episode, subtitlesTrack)
+    } yield UnknownSubtitledEpisode(episode.fileName, extracted)
 
   private def identifySubtitlesTrack(episode: UnknownRemuxEpisode): IO[Option[SubtitlesTrack]] =
     IO {
@@ -67,7 +65,7 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
           val tempFileName = fileSystem.getTempFileName.replace(".", "")
 
           for {
-            _ <- logger.debug(fileSystem.getFileName(episode.fileName))
+            //_ <- logger.debug(s"\tMovie hash: ${episode.movieHash}")
             _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber} of type $trackType")
             _ <- IO(
               fileSystem.call(

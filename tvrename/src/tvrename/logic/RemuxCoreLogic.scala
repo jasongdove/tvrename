@@ -22,19 +22,20 @@ class RemuxCoreLogic(
     for {
       _ <- downloader.download()
       unknownEpisodes <- classifier.findUnknownEpisodes()
-      subtitledEpisodes <- extractor.extractFromEpisodes(unknownEpisodes)
-      processedSubtitledEpisodes <- processor.processEpisodes(subtitledEpisodes)
-      matchedEpisodes <- matcher.matchEpisodes(processedSubtitledEpisodes)
-      _ <- renameEpisodes(matchedEpisodes)
+      _ <- unknownEpisodes.traverse(identifyAndRenameEpisode)
     } yield ()
 
-  def renameEpisodes(episodes: List[MatchedSubtitledEpisode]): IO[Unit] =
-    episodes.map { episode =>
-      for {
-        _ <- logger.info(fileSystem.getFileName(episode.fileName))
-        _ <- renameEpisode(episode)
-      } yield ()
-    }.sequence_
+  def identifyAndRenameEpisode(episode: UnknownRemuxEpisode): IO[Unit] =
+    for {
+      _ <- logger.debug(fileSystem.getFileName(episode.fileName))
+      subtitledEpisode <- extractor.extractFromEpisode(episode)
+      processedSubtitledEpisode <- processor.processEpisode(subtitledEpisode)
+    } yield {
+      matcher.matchEpisode(processedSubtitledEpisode) match {
+        case Some(episode) => renameEpisode(episode)
+        case None          => ()
+      }
+    }
 
   def renameEpisode(episode: MatchedSubtitledEpisode): IO[Unit] = {
     val template = jobConfig.template
@@ -87,23 +88,28 @@ class VerifyRemuxCoreLogic(
       for {
         _ <- downloader.download()
         unknownEpisodes <- classifier.findUnknownEpisodes()
-        subtitledEpisodes <- extractor.extractFromEpisodes(unknownEpisodes)
-        processedSubtitledEpisodes <- processor.processEpisodes(subtitledEpisodes)
-        matchedEpisodes <- matcher.matchEpisodes(processedSubtitledEpisodes)
-        success <- validateEpisodes(matchedEpisodes)
+        success <- identifyAndValidateEpisodes(unknownEpisodes)
         _ <- recordSuccess(success)
       } yield ()
     }
   }
 
-  private def validateEpisodes(episodes: List[MatchedSubtitledEpisode]): IO[Boolean] =
+  def identifyAndValidateEpisodes(episodes: List[UnknownRemuxEpisode]): IO[Boolean] =
     episodes.foldLeft[IO[Boolean]](IO.pure(true)) { (acc, episode) =>
       for {
-        _ <- logger.info(fileSystem.getFileName(episode.fileName))
-        success <- validateEpisode(episode)
+        success <- identifyAndValidateEpisode(episode)
         accSuccess <- acc
       } yield accSuccess && success
     }
+
+  def identifyAndValidateEpisode(episode: UnknownRemuxEpisode): IO[Boolean] =
+    for {
+      _ <- logger.debug(fileSystem.getFileName(episode.fileName))
+      subtitledEpisode <- extractor.extractFromEpisode(episode)
+      processedSubtitledEpisode <- processor.processEpisode(subtitledEpisode)
+      matchStatus <- IO(matcher.matchEpisode(processedSubtitledEpisode))
+      result <- matchStatus.map(validateEpisode).getOrElse(IO.pure(false))
+    } yield result
 
   private def validateEpisode(episode: MatchedSubtitledEpisode): IO[Boolean] = {
     getMatchStatus(episode) match {

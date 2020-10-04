@@ -14,8 +14,7 @@ case class EpisodeMatch(seasonNumber: Int, episodeNumber: Int, confidence: Int)
 case class MatchedSubtitledEpisode(fileName: String, seasonNumber: Int, episodeNumber: Int, confidence: Int)
 
 trait SubtitleMatcher {
-  def matchEpisodes(episodes: List[UnknownProcessedSubtitledEpisode]): IO[List[MatchedSubtitledEpisode]]
-  def matchToReference(episodeLines: List[String]): Option[EpisodeMatch]
+  def matchEpisode(episode: UnknownProcessedSubtitledEpisode): Option[MatchedSubtitledEpisode]
 }
 
 class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fileSystem: FileSystem)
@@ -48,23 +47,12 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
     collection.mutable.Map(map.toSeq: _*)
   }
 
-  override def matchEpisodes(episodes: List[UnknownProcessedSubtitledEpisode]): IO[List[MatchedSubtitledEpisode]] =
-    IO {
-      val allMatches = for {
-        episode <- episodes
-        episodeMatch = matchToReference(episode.lines)
-      } yield {
-        episodeMatch match {
-          case Some(em) =>
-            Some(MatchedSubtitledEpisode(episode.fileName, em.seasonNumber, em.episodeNumber, em.confidence))
-          case None => None
-        }
-      }
+  def matchEpisode(episode: UnknownProcessedSubtitledEpisode): Option[MatchedSubtitledEpisode] =
+    matchToReference(episode.lines).map(em =>
+      MatchedSubtitledEpisode(episode.fileName, em.seasonNumber, em.episodeNumber, em.confidence)
+    )
 
-      allMatches.flatten
-    }
-
-  override def matchToReference(episodeLines: List[String]): Option[EpisodeMatch] = {
+  private def matchToReference(episodeLines: List[String]): Option[EpisodeMatch] = {
     val rankedMatches = referenceSubtitles
       .map {
         case (key, value) => {

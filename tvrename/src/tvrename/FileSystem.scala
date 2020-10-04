@@ -13,7 +13,7 @@ trait FileSystem {
   def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String)
   def exists(path: String): Boolean
   def getTempFileName(): String
-  def call(command: String*)
+  def call(command: String*): IO[Unit]
   def readLines(path: String): Seq[String]
   def getFileName(path: String): String
   def writeToFile(path: String, contents: String): IO[Unit]
@@ -45,7 +45,7 @@ object FileSystemImpl extends FileSystem {
 
   override def getTempFileName(): String = os.temp().toString
 
-  override def call(command: String*): Unit = os.proc(command).call(mergeErrIntoOut = true)
+  override def call(command: String*): IO[Unit] = IO(os.proc(command).call(mergeErrIntoOut = true))
 
   override def readLines(path: String): Seq[String] = os.read.lines(os.Path(path))
 

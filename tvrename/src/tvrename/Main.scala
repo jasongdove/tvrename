@@ -57,7 +57,7 @@ object Main extends IOApp {
           val classifier = new RemuxEpisodeClassifier(command, remuxJobConfig, fileSystem)
           val subtitleExtractor: SubtitleExtractor =
             new SubtitleExtractorImpl(config, remuxJobConfig, fileSystem, logger)
-          val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem)
+          val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem, logger)
           val subtitleMatcher: SubtitleMatcher = new SubtitleMatcherImpl(config, remuxJobConfig, fileSystem)
           val coreLogic: CoreLogic = command match {
             case Rename =>

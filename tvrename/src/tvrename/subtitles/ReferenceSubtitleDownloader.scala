@@ -128,7 +128,7 @@ class ReferenceSubtitleDownloaderImpl(
     searchResults.foldLeft[IO[Option[String]]](IO(None)) { (acc, next) =>
       acc.flatMap {
         case Some(str) => IO(Some(str))
-        case None => downloadAndParseSubtitle(next)
+        case None      => downloadAndParseSubtitle(next)
       }
     }
   }
