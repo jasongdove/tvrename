@@ -10,6 +10,7 @@ import tvrename.config._
 import upickle.default._
 
 import scala.util.Try
+import scala.util.matching.Regex
 
 trait ReferenceSubtitleDownloader {
   def download(): IO[Unit]
@@ -48,9 +49,8 @@ class ReferenceSubtitleDownloaderImpl(
   private val parser = new SRTParser
 
   private def expectedEpisodeCount: IO[Option[Int]] =
-    IO(
-      if (fileSystem.exists(episodeCountFile)) fileSystem.readLines(episodeCountFile).headOption.map(_.toInt) else None
-    )
+    if (fileSystem.exists(episodeCountFile)) fileSystem.readLines(episodeCountFile).map(_.headOption.map(_.toInt))
+    else IO.pure(None)
 
   private def actualEpisodeCount: IO[Int] = IO(fileSystem.walk(targetFolder).count(f => f.endsWith(".srt")))
 
@@ -139,7 +139,38 @@ class ReferenceSubtitleDownloaderImpl(
       _ <- logger.debug(searchResult.SubDownloadLink)
       stream <- IO(requests.get.stream(searchResult.SubDownloadLink, check = false))
       _ <- IO(fileSystem.streamCommandToFile(stream, "gunzip", tempFile))
-      attempt <- Try { parser.parse(new File(tempFile)) }.attempt.liftTo[IO]
-    } yield attempt.map(_ => tempFile).toOption
+      attempt <- cleanupAndParse(tempFile)
+    } yield attempt
+  }
+
+  private def cleanupAndParse(fileName: String): IO[Option[String]] = {
+    for {
+      lines <- fileSystem.readLines(fileName)
+      _ <- fileSystem.writeToFile(fileName, cleanupLines(lines))
+      attempt <- Try { parser.parse(new File(fileName)) }.attempt.liftTo[IO]
+    } yield attempt.map(_ => fileName).toOption
+  }
+
+  private def cleanupLines(lines: Seq[String]): String = {
+    // many subrip files are formatted with timestamps like 00:00:0,000 or 00:00:00,00 which isn't valid for the parser
+    // we don't really care about timestamps, though, so we'll try to make it valid
+    val badSeconds =
+      new Regex("([\\d]{2}):([\\d]{2}):(\\d),([\\d]{2,3})", "hours", "minutes", "seconds", "milliseconds")
+    val badMilliseconds =
+      new Regex("([\\d]{2}):([\\d]{2}):([\\d]{2}),([\\d]{2})(?!\\d)", "hours", "minutes", "seconds", "milliseconds")
+    lines
+      .map(line =>
+        badSeconds.replaceAllIn(
+          line,
+          m => s"${m group "hours"}:${m group "minutes"}:0${m group "seconds"},${m group "milliseconds"}"
+        )
+      )
+      .map(line =>
+        badMilliseconds.replaceAllIn(
+          line,
+          m => s"${m group "hours"}:${m group "minutes"}:${m group "seconds"},${m group "milliseconds"}0"
+        )
+      )
+      .mkString("\n")
   }
 }

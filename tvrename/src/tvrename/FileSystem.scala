@@ -14,7 +14,7 @@ trait FileSystem {
   def exists(path: String): Boolean
   def getTempFileName(): String
   def call(command: String*): IO[Unit]
-  def readLines(path: String): Seq[String]
+  def readLines(path: String): IO[Seq[String]]
   def getFileName(path: String): String
   def writeToFile(path: String, contents: String): IO[Unit]
   def concatPaths(one: String, two: String): String
@@ -47,7 +47,7 @@ object FileSystemImpl extends FileSystem {
 
   override def call(command: String*): IO[Unit] = IO(os.proc(command).call(mergeErrIntoOut = true))
 
-  override def readLines(path: String): Seq[String] = os.read.lines(os.Path(path))
+  override def readLines(path: String): IO[Seq[String]] = IO(os.read.lines(os.Path(path)))
 
   override def getFileName(path: String): String = {
     val p = os.Path(path)
