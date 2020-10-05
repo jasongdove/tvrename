@@ -104,7 +104,7 @@ class VerifyRemuxCoreLogic(
 
   def identifyAndValidateEpisode(episode: UnknownRemuxEpisode): IO[Boolean] =
     for {
-      _ <- logger.debug(fileSystem.getFileName(episode.fileName))
+      _ <- logger.debug(s"${fileSystem.getFileName(episode.fileName)} (${episode.movieHash})")
       subtitledEpisode <- extractor.extractFromEpisode(episode)
       processedSubtitledEpisode <- processor.processEpisode(subtitledEpisode)
       matchStatus <- IO(matcher.matchEpisode(processedSubtitledEpisode))
@@ -114,7 +114,7 @@ class VerifyRemuxCoreLogic(
   private def validateEpisode(episode: MatchedSubtitledEpisode): IO[Boolean] = {
     getMatchStatus(episode) match {
       case FailedToMatch =>
-        logger.warn(s"\t=> ${episode.confidence} FAIL").flatMap(_ => IO.pure(false))
+        logger.warn(s"\t=> ${episode.confidence}% FAIL").flatMap(_ => IO.pure(false))
       case NoChangeRequired =>
         logger.info(s"\t=> ${episode.confidence}% OK").flatMap(_ => IO.pure(true))
       case SuccessfullyMatched =>

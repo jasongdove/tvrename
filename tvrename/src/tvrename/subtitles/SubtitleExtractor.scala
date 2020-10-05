@@ -65,7 +65,6 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
           val tempFileName = fileSystem.getTempFileName.replace(".", "")
 
           for {
-            //_ <- logger.debug(s"\tMovie hash: ${episode.movieHash}")
             _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber} of type $trackType")
             _ <- IO(
               fileSystem.call(
