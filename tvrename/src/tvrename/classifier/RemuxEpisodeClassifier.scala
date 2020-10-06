@@ -15,20 +15,21 @@ case class UnknownRemuxEpisode(fileName: String) extends UnknownEpisode {
 
 class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownRemuxEpisode](jobConfig, fileSystem) {
-  def findUnknownEpisodes(): IO[List[UnknownRemuxEpisode]] =
-    IO {
-      val validExtensions = List(".mkv")
-      val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{2})\..*""".r
+  def findUnknownEpisodes(): IO[List[UnknownRemuxEpisode]] = {
+    val validExtensions = List(".mkv")
+    val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{2})\..*""".r
 
-      def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
-      def isUnknown(fileName: String) = !knownPattern.matches(fileName)
+    def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
+    def isUnknown(fileName: String) = !knownPattern.matches(fileName)
 
-      fileSystem
-        .walk(jobConfig.mediaFolder, jobConfig.recursive)
-        .filter(isValid)
-        .filter(command == Verify || isUnknown(_))
-        .map(UnknownRemuxEpisode)
-        .sortBy(_.fileName)
-        .toList
-    }
+    fileSystem
+      .walk(jobConfig.mediaFolder, jobConfig.recursive)
+      .map(
+        _.filter(isValid)
+          .filter(command == Verify || isUnknown(_))
+          .map(UnknownRemuxEpisode)
+          .sortBy(_.fileName)
+          .toList
+      )
+  }
 }

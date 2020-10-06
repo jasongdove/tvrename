@@ -30,8 +30,9 @@ class RemuxCoreLogic(
       _ <- logger.debug(fileSystem.getFileName(episode.fileName))
       subtitledEpisode <- extractor.extractFromEpisode(episode)
       processedSubtitledEpisode <- processor.processEpisode(subtitledEpisode)
+      matchedEpisode <- matcher.matchEpisode(processedSubtitledEpisode)
     } yield {
-      matcher.matchEpisode(processedSubtitledEpisode) match {
+      matchedEpisode match {
         case Some(episode) => renameEpisode(episode)
         case None          => ()
       }
@@ -81,21 +82,22 @@ class VerifyRemuxCoreLogic(
 ) extends CoreLogic {
   private val verifiedFileName = fileSystem.concatPaths(jobConfig.mediaFolder, ".tvrename-verified")
 
-  def run(): IO[Unit] = {
-    if (fileSystem.exists(verifiedFileName)) {
-      logger.info("Media folder has already been verified")
-    } else {
-      for {
-        _ <- downloader.download()
-        unknownEpisodes <- classifier.findUnknownEpisodes()
-        success <- identifyAndValidateEpisodes(unknownEpisodes)
-        _ <- recordSuccess(success)
-      } yield ()
-    }
-  }
+  def run(): IO[Unit] =
+    for {
+      alreadyVerified <- fileSystem.exists(verifiedFileName)
+      _ <- performVerification().unlessA(alreadyVerified)
+    } yield ()
 
-  def identifyAndValidateEpisodes(episodes: List[UnknownRemuxEpisode]): IO[Boolean] =
-    episodes.foldLeft[IO[Boolean]](IO.pure(true)) { (acc, episode) =>
+  private def performVerification(): IO[Unit] =
+    for {
+      _ <- downloader.download()
+      unknownEpisodes <- classifier.findUnknownEpisodes()
+      success <- identifyAndValidateEpisodes(unknownEpisodes)
+      _ <- fileSystem.writeToFile(verifiedFileName, "OK").whenA(success)
+    } yield ()
+
+  private def identifyAndValidateEpisodes(episodes: List[UnknownRemuxEpisode]): IO[Boolean] =
+    episodes.foldRight[IO[Boolean]](IO.pure(true)) { (episode, acc) =>
       for {
         success <- identifyAndValidateEpisode(episode)
         accSuccess <- acc
@@ -107,7 +109,7 @@ class VerifyRemuxCoreLogic(
       _ <- logger.debug(s"${fileSystem.getFileName(episode.fileName)} (${episode.movieHash})")
       subtitledEpisode <- extractor.extractFromEpisode(episode)
       processedSubtitledEpisode <- processor.processEpisode(subtitledEpisode)
-      matchStatus <- IO(matcher.matchEpisode(processedSubtitledEpisode))
+      matchStatus <- matcher.matchEpisode(processedSubtitledEpisode)
       result <- matchStatus.map(validateEpisode).getOrElse(IO.pure(false))
     } yield result
 
@@ -122,12 +124,6 @@ class VerifyRemuxCoreLogic(
         logger.info(s"\t=> ${episode.confidence}% FAIL ${newFileName}").flatMap(_ => IO.pure(false))
     }
   }
-
-  private def recordSuccess(success: Boolean): IO[Unit] =
-    if (success)
-      fileSystem.writeToFile(verifiedFileName, "OK")
-    else
-      IO.unit
 
   private def getNewFileName(episode: MatchedSubtitledEpisode): String = {
     val template = jobConfig.template

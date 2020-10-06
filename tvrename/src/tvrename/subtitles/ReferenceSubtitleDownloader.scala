@@ -2,6 +2,7 @@ package tvrename.subtitles
 
 import java.io.File
 
+import cats.data.OptionT
 import cats.effect._
 import cats.implicits._
 import com.github.dnbn.submerge.api.parser.SRTParser
@@ -15,6 +16,8 @@ import scala.util.matching.Regex
 trait ReferenceSubtitleDownloader {
   def download(): IO[Unit]
 }
+
+case class ValidSubtitleFile(fileName: String)
 
 class ReferenceSubtitleDownloaderImpl(
   config: TVRenameConfig,
@@ -49,10 +52,12 @@ class ReferenceSubtitleDownloaderImpl(
   private val parser = new SRTParser
 
   private def expectedEpisodeCount: IO[Option[Int]] =
-    if (fileSystem.exists(episodeCountFile)) fileSystem.readLines(episodeCountFile).map(_.headOption.map(_.toInt))
-    else IO.pure(None)
+    for {
+      exists <- fileSystem.exists(episodeCountFile)
+      lines <- if (exists) fileSystem.readLines(episodeCountFile) else IO.pure(List.empty)
+    } yield lines.headOption.map(_.toInt)
 
-  private def actualEpisodeCount: IO[Int] = IO(fileSystem.walk(targetFolder).count(f => f.endsWith(".srt")))
+  private def actualEpisodeCount: IO[Int] = fileSystem.walk(targetFolder).map(_.count(f => f.endsWith(".srt")))
 
   private def search(): IO[List[EpisodeSearchResults]] =
     IO {
@@ -73,7 +78,7 @@ class ReferenceSubtitleDownloaderImpl(
 
   override def download(): IO[Unit] =
     for {
-      _ <- IO(fileSystem.makeDirs(targetFolder))
+      _ <- fileSystem.makeDirs(targetFolder)
       expected <- expectedEpisodeCount
       actual <- actualEpisodeCount
       _ <- downloadIfNeeded(expected, actual)
@@ -108,47 +113,47 @@ class ReferenceSubtitleDownloaderImpl(
 
       val targetFile = f"${targetFolder}/${template}.srt"
 
-      if (!fileSystem.exists(targetFile)) {
-        downloadValidSubtitleForEpisode(sortedSearchResults).flatMap { tempFile =>
-          tempFile match {
-            case Some(fileName) =>
-              for {
-                _ <- logger.debug(targetFile)
-                _ <- fileSystem.rename(fileName, targetFile)
-              } yield ()
-            case None =>
-              logger.warn(s"Unable to locate valid subtitle for episode ${episode.episodeNumber}")
-          }
-        }
-      } else IO.unit
+      val downloadAll: OptionT[IO, Unit] = for {
+        exists <- OptionT.liftF(fileSystem.exists(targetFile))
+        subtitleFile <- OptionT(if (!exists) downloadValidSubtitleForEpisode(sortedSearchResults) else IO.pure(None))
+        _ <- OptionT.liftF(logger.debug(targetFile))
+        _ <- OptionT.liftF(fileSystem.rename(subtitleFile.fileName, targetFile))
+      } yield ()
+
+      downloadAll
+        .recoverWith(_ =>
+          OptionT.liftF(logger.warn(s"Unable to locate valid subtitle for episode ${episode.episodeNumber}"))
+        )
+        .value
     }
   }
 
-  def downloadValidSubtitleForEpisode(searchResults: List[SearchResult]): IO[Option[String]] = {
-    searchResults.foldLeft[IO[Option[String]]](IO(None)) { (acc, next) =>
+  def downloadValidSubtitleForEpisode(searchResults: List[SearchResult]): IO[Option[ValidSubtitleFile]] = {
+    searchResults.foldLeft[IO[Option[ValidSubtitleFile]]](IO.pure(None)) { (acc, next) =>
       acc.flatMap {
-        case Some(str) => IO(Some(str))
-        case None      => downloadAndParseSubtitle(next)
+        case Some(value) => IO.pure(Some(value))
+        case None        => downloadAndParseSubtitle(next)
       }
     }
   }
 
-  def downloadAndParseSubtitle(searchResult: SearchResult): IO[Option[String]] = {
+  def downloadAndParseSubtitle(searchResult: SearchResult): IO[Option[ValidSubtitleFile]] = {
     val tempFile = fileSystem.getTempFileName()
     for {
       _ <- logger.debug(searchResult.SubDownloadLink)
       stream <- IO(requests.get.stream(searchResult.SubDownloadLink, check = false))
-      _ <- IO(fileSystem.streamCommandToFile(stream, "gunzip", tempFile))
+      _ <- fileSystem.streamCommandToFile(stream, "gunzip", tempFile)
       attempt <- cleanupAndParse(tempFile)
     } yield attempt
   }
 
-  private def cleanupAndParse(fileName: String): IO[Option[String]] = {
+  private def cleanupAndParse(fileName: String): IO[Option[ValidSubtitleFile]] = {
     for {
-      lines <- fileSystem.readLines(fileName)
-      _ <- fileSystem.writeToFile(fileName, cleanupLines(lines))
+      //lines <- fileSystem.readLines(fileName)
+      //_ <- fileSystem.writeToFile(fileName, cleanupLines(lines))
       attempt <- Try { parser.parse(new File(fileName)) }.attempt.liftTo[IO]
-    } yield attempt.map(_ => fileName).toOption
+      result <- if (attempt.isLeft) IO.pure(None) else IO.pure(Some(ValidSubtitleFile(fileName)))
+    } yield result
   }
 
   private def cleanupLines(lines: Seq[String]): String = {

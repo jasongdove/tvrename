@@ -28,7 +28,7 @@ class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem, 
           val cleanedLines = cleanLines(lines)
           UnknownProcessedSubtitledEpisode(episode.fileName, cleanedLines)
         }
-      case None => IO(UnknownProcessedSubtitledEpisode(episode.fileName, List.empty))
+      case None => IO.pure(UnknownProcessedSubtitledEpisode(episode.fileName, List.empty))
     }
 
   private def convertToLines(subtitles: Subtitles): IO[List[String]] = {
@@ -67,38 +67,36 @@ class ExternalSubtitleProcessor(config: TVRenameConfig, fileSystem: FileSystem, 
 
   private def ocr(subtitles: PGS): IO[SubRip] = {
     val subRip = SubRip(subtitles.baseFileName)
-    if (!fileSystem.exists(subRip.primaryFileName)) {
-      val dockerIO = fileSystem.call(
-        "docker",
-        "run",
-        "--user",
-        "1000:1000",
-        "--rm",
-        "-v",
-        s"${config.cacheFolder}:/data",
-        "-e",
-        s"INPUT=/data/${fileSystem.relativeTo(subtitles.primaryFileName, config.cacheFolder)}",
-        "-e",
-        s"OUTPUT=/data/${fileSystem.relativeTo(subRip.primaryFileName, config.cacheFolder)}",
-        "-e",
-        "LANGUAGE=eng",
-        "local/pgstosrt"
-      )
-      for {
-        _ <- logger.debug("\tConverting bitmap subtitles to text")
-        _ <- dockerIO
-      } yield subRip
-    } else IO.pure(subRip)
+    val dockerIO = fileSystem.call(
+      "docker",
+      "run",
+      "--user",
+      "1000:1000",
+      "--rm",
+      "-v",
+      s"${config.cacheFolder}:/data",
+      "-e",
+      s"INPUT=/data/${fileSystem.relativeTo(subtitles.primaryFileName, config.cacheFolder)}",
+      "-e",
+      s"OUTPUT=/data/${fileSystem.relativeTo(subRip.primaryFileName, config.cacheFolder)}",
+      "-e",
+      "LANGUAGE=eng",
+      "local/pgstosrt"
+    )
+    for {
+      exists <- fileSystem.exists(subRip.primaryFileName)
+      _ <- logger.debug("\tConverting bitmap subtitles to text").unlessA(exists)
+      _ <- dockerIO.unlessA(exists)
+    } yield subRip
   }
 
-  private def ocr(subtitles: VobSub): IO[SubRip] =
-    IO {
-      val subRip = SubRip(subtitles.baseFileName)
-      if (!fileSystem.exists(subRip.primaryFileName)) {
-        fileSystem.call("vobsub2srt", "-l", "en", subtitles.baseFileName)
-      }
-      subRip
-    }
+  private def ocr(subtitles: VobSub): IO[SubRip] = {
+    val subRip = SubRip(subtitles.baseFileName)
+    for {
+      exists <- fileSystem.exists(subRip.primaryFileName)
+      _ <- fileSystem.call("vobsub2srt", "-l", "en", subtitles.baseFileName).unlessA(exists)
+    } yield subRip
+  }
 
   private def readLinesFromFile(fileName: String): IO[List[String]] =
     IO {

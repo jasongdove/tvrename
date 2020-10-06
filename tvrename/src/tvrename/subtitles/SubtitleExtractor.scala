@@ -33,14 +33,14 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
       extracted <- extractFromEpisode(episode, subtitlesTrack)
     } yield UnknownSubtitledEpisode(episode.fileName, extracted)
 
-  private def identifySubtitlesTrack(episode: UnknownRemuxEpisode): IO[Option[SubtitlesTrack]] =
-    IO {
-      val folderOne = s"${episode.movieHash.substring(0, 2)}"
-      val folderTwo = s"${episode.movieHash.substring(2, 4)}"
+  private def identifySubtitlesTrack(episode: UnknownRemuxEpisode): IO[Option[SubtitlesTrack]] = {
+    val folderOne = s"${episode.movieHash.substring(0, 2)}"
+    val folderTwo = s"${episode.movieHash.substring(2, 4)}"
 
-      val targetFolder = s"${config.cacheFolder}/extracted/${folderOne}/${folderTwo}"
-      fileSystem.makeDirs(targetFolder)
-
+    val targetFolder = s"${config.cacheFolder}/extracted/${folderOne}/${folderTwo}"
+    for {
+      _ <- fileSystem.makeDirs(targetFolder)
+    } yield {
       val cacheFileNameWithoutExtension = s"${targetFolder}/${episode.movieHash}"
 
       val dataSource = new FileDataSource(episode.fileName)
@@ -53,6 +53,7 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
         .sortBy(st => st.subtitles.priority)
         .headOption
     }
+  }
 
   private def extractFromEpisode(
     episode: UnknownRemuxEpisode,
@@ -60,27 +61,43 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
   ): IO[Option[Subtitles]] =
     subtitles match {
       case Some(subtitlesTrack) =>
-        if (!subtitlesTrack.subtitles.fileNames.forall(fileSystem.exists)) {
-          val trackType = subtitlesTrack.subtitles.getClass.getSimpleName
-          val tempFileName = fileSystem.getTempFileName.replace(".", "")
-
-          for {
-            _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber} of type $trackType")
-            _ <- IO(
-              fileSystem.call(
-                "mkvextract",
-                episode.fileName,
-                "tracks",
-                s"${subtitlesTrack.trackNumber}:${tempFileName}"
-              )
-            )
-            _ <- renameTempFiles(subtitlesTrack, tempFileName)
-          } yield Some(subtitlesTrack.subtitles)
-        } else {
-          IO(Some(subtitlesTrack.subtitles))
-        }
-      case None => IO(None)
+        for {
+          allExist <- checkAllExist(subtitlesTrack.subtitles.fileNames)
+          extracted <-
+            if (allExist)
+              IO.pure(Some(subtitlesTrack.subtitles))
+            else
+              extractAllFromEpisode(episode, subtitlesTrack)
+        } yield extracted
+      case None => IO.pure(None)
     }
+
+  private def checkAllExist(fileNames: Set[String]): IO[Boolean] =
+    fileNames.foldLeft[IO[Boolean]](IO.pure(true)) { (acc, fileName) =>
+      for {
+        success <- fileSystem.exists(fileName)
+        accSuccess <- acc
+      } yield accSuccess && success
+    }
+
+  private def extractAllFromEpisode(
+    episode: UnknownRemuxEpisode,
+    subtitlesTrack: SubtitlesTrack
+  ): IO[Option[Subtitles]] = {
+    val trackType = subtitlesTrack.subtitles.getClass.getSimpleName
+    val tempFileName = fileSystem.getTempFileName.replace(".", "")
+
+    for {
+      _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber} of type $trackType")
+      _ <- fileSystem.call(
+        "mkvextract",
+        episode.fileName,
+        "tracks",
+        s"${subtitlesTrack.trackNumber}:${tempFileName}"
+      )
+      _ <- renameTempFiles(subtitlesTrack, tempFileName)
+    } yield Some(subtitlesTrack.subtitles)
+  }
 
   private def renameTempFiles(subtitlesTrack: SubtitlesTrack, tempFileName: String): IO[Unit] = {
     val appendExtension = subtitlesTrack.subtitles.extensions.size > 1

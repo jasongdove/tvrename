@@ -13,7 +13,7 @@ abstract case class EpisodeClassifier[A <: UnknownEpisode](jobConfig: JobConfig,
     episode: A,
     seasonNumber: SeasonNumber,
     episodeNumber: Int
-  ): (String, String) = {
+  ): IO[(String, String)] = {
     val sourceFile = episode.fileName
 
     val formattedSeason = f"${seasonNumber.value}%02d"
@@ -27,8 +27,8 @@ abstract case class EpisodeClassifier[A <: UnknownEpisode](jobConfig: JobConfig,
     val newFileName = titleSeasonAndEpisode + ext
     val targetFile = fileSystem.absoluteToRelative(newFileName, sourceFile)
 
-    fileSystem.rename(sourceFile, targetFile)
-
-    (sourceFile, targetFile)
+    fileSystem
+      .rename(sourceFile, targetFile)
+      .map(_ => sourceFile -> targetFile)
   }
 }

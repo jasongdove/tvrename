@@ -28,8 +28,8 @@ object Main extends IOApp {
     val logger: Logger = LoggerImpl
     val terminalConfig = new TerminalConfig(args)
     val commandIO: IO[Command] = terminalConfig.subcommand match {
-      case Some(terminalConfig.renameCommand) => IO(Rename)
-      case Some(terminalConfig.verifyCommand) => IO(Verify)
+      case Some(terminalConfig.renameCommand) => IO.pure(Rename)
+      case Some(terminalConfig.verifyCommand) => IO.pure(Verify)
       case _                                  => IO.raiseError(new Exception())
     }
 

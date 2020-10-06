@@ -11,28 +11,29 @@ case class UnknownBroadcastEpisode(fileName: String, date: LocalDate) extends Un
 
 class BroadcastEpisodeClassifier(jobConfig: BroadcastJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownBroadcastEpisode](jobConfig, fileSystem) {
-  def findUnknownEpisodes(): IO[List[UnknownBroadcastEpisode]] =
-    IO {
-      val validExtensions = List(".mkv", ".ts")
-      val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
+  def findUnknownEpisodes(): IO[List[UnknownBroadcastEpisode]] = {
+    val validExtensions = List(".mkv", ".ts")
+    val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
 
-      def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
-      def isUnknown(fileName: String) = !knownPattern.matches(fileName)
+    def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
+    def isUnknown(fileName: String) = !knownPattern.matches(fileName)
 
-      // TODO: use DATE_BROADCASTED tag (mkv), or General;Duration_Start (ts)
-      def dateBroadcasted(fileName: String): LocalDate =
-        Instant
-          .ofEpochMilli(
-            fileSystem.getModifyTime(fileName) - 7200000
-          ) // offset by two hours until we read metadata
-          .atZone(ZoneId.systemDefault)
-          .toLocalDate
+    // TODO: use DATE_BROADCASTED tag (mkv), or General;Duration_Start (ts)
+    def dateBroadcasted(fileName: String): LocalDate =
+      Instant
+        .ofEpochMilli(
+          fileSystem.getModifyTime(fileName) - 7200000
+        ) // offset by two hours until we read metadata
+        .atZone(ZoneId.systemDefault)
+        .toLocalDate
 
-      fileSystem
-        .walk(jobConfig.mediaFolder, jobConfig.recursive)
-        .filter(isValid)
-        .filter(isUnknown)
-        .map(f => UnknownBroadcastEpisode(f, dateBroadcasted(f)))
-        .toList
-    }
+    fileSystem
+      .walk(jobConfig.mediaFolder, jobConfig.recursive)
+      .map(
+        _.filter(isValid)
+          .filter(isUnknown)
+          .map(f => UnknownBroadcastEpisode(f, dateBroadcasted(f)))
+          .toList
+      )
+  }
 }
