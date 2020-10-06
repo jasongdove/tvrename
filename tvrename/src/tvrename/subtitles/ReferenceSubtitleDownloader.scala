@@ -116,7 +116,7 @@ class ReferenceSubtitleDownloaderImpl(
       val downloadAll: OptionT[IO, Unit] = for {
         exists <- OptionT.liftF(fileSystem.exists(targetFile))
         subtitleFile <- OptionT(if (!exists) downloadValidSubtitleForEpisode(sortedSearchResults) else IO.pure(None))
-        _ <- OptionT.liftF(logger.debug(targetFile))
+        _ <- OptionT.liftF(logger.debug(s"\t => $template.srt"))
         _ <- OptionT.liftF(fileSystem.rename(subtitleFile.fileName, targetFile))
       } yield ()
 
@@ -149,8 +149,8 @@ class ReferenceSubtitleDownloaderImpl(
 
   private def cleanupAndParse(fileName: String): IO[Option[ValidSubtitleFile]] = {
     for {
-      //lines <- fileSystem.readLines(fileName)
-      //_ <- fileSystem.writeToFile(fileName, cleanupLines(lines))
+      lines <- fileSystem.readLines(fileName)
+      _ <- fileSystem.writeToFile(fileName, cleanupLines(lines))
       attempt <- Try { parser.parse(new File(fileName)) }.attempt.liftTo[IO]
       result <- if (attempt.isLeft) IO.pure(None) else IO.pure(Some(ValidSubtitleFile(fileName)))
     } yield result
