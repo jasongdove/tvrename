@@ -4,7 +4,7 @@ import os.copy.over
 import cats.effect.IO
 
 trait FileSystem {
-  def walk(path: String, recursive: Boolean = false): IO[IndexedSeq[String]]
+  def walk(path: String, recursive: Boolean): IO[IndexedSeq[String]]
   def getModifyTime(path: String): Long
   def rename(source: String, dest: String): IO[Unit]
   def absoluteToRelative(path: String, relativeTo: String): String
@@ -21,7 +21,7 @@ trait FileSystem {
 }
 
 object FileSystemImpl extends FileSystem {
-  override def walk(path: String, recursive: Boolean = false): IO[IndexedSeq[String]] =
+  override def walk(path: String, recursive: Boolean): IO[IndexedSeq[String]] =
     IO(os.walk(os.Path(path), maxDepth = if (recursive) Int.MaxValue else 1).map(_.toString))
 
   override def getModifyTime(path: String): Long = os.mtime(os.Path(path))

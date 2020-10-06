@@ -6,6 +6,7 @@ import tvrename._
 import tvrename.classifier._
 import tvrename.config._
 import tvrename.subtitles._
+import cats.data.OptionT
 
 class RemuxCoreLogic(
   jobConfig: RemuxJobConfig,
@@ -25,18 +26,16 @@ class RemuxCoreLogic(
       _ <- unknownEpisodes.traverse(identifyAndRenameEpisode)
     } yield ()
 
-  def identifyAndRenameEpisode(episode: UnknownRemuxEpisode): IO[Unit] =
-    for {
-      _ <- logger.debug(fileSystem.getFileName(episode.fileName))
-      subtitledEpisode <- extractor.extractFromEpisode(episode)
-      processedSubtitledEpisode <- processor.processEpisode(subtitledEpisode)
-      matchedEpisode <- matcher.matchEpisode(processedSubtitledEpisode)
-    } yield {
-      matchedEpisode match {
-        case Some(episode) => renameEpisode(episode)
-        case None          => ()
-      }
-    }
+  def identifyAndRenameEpisode(episode: UnknownRemuxEpisode): IO[Unit] = {
+    val result = for {
+      _ <- OptionT.liftF(logger.debug(fileSystem.getFileName(episode.fileName)))
+      subtitledEpisode <- OptionT.liftF(extractor.extractFromEpisode(episode))
+      processedSubtitledEpisode <- OptionT.liftF(processor.processEpisode(subtitledEpisode))
+      matchedEpisode <- OptionT(matcher.matchEpisode(processedSubtitledEpisode))
+      _ <- OptionT.liftF(renameEpisode(matchedEpisode))
+    } yield ()
+    result.value.map(_ => ())
+  }
 
   def renameEpisode(episode: MatchedSubtitledEpisode): IO[Unit] = {
     val template = jobConfig.template
@@ -49,15 +48,15 @@ class RemuxCoreLogic(
     val newFileName = template + ext
     val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
 
-    if (episode.confidence < jobConfig.minimumConfidence) {
-      logger.warn(s"\t=> ${episode.confidence}% confidence too low; will not rename")
+    if (episode.confidence < jobConfig.minimumConfidence.getOrElse(40)) {
+      logger.warn(s"\t=> ${episode.confidence.toString}% confidence too low; will not rename")
     } else if (targetFile == episode.fileName) {
-      logger.info(s"\t=> ${episode.confidence}% NO CHANGE")
+      logger.info(s"\t=> ${episode.confidence.toString}% NO CHANGE")
     } else if (dryRun) {
-      logger.info(s"\t=> ${episode.confidence}% DRY RUN => ${template}")
+      logger.info(s"\t=> ${episode.confidence.toString}% DRY RUN => ${template}")
     } else {
       for {
-        _ <- logger.info(s"\t=> ${episode.confidence}% ${newFileName}")
+        _ <- logger.info(s"\t=> ${episode.confidence.toString}% ${newFileName}")
         _ <- fileSystem.rename(episode.fileName, targetFile)
       } yield ()
     }
@@ -116,12 +115,12 @@ class VerifyRemuxCoreLogic(
   private def validateEpisode(episode: MatchedSubtitledEpisode): IO[Boolean] = {
     getMatchStatus(episode) match {
       case FailedToMatch =>
-        logger.warn(s"\t=> ${episode.confidence}% FAIL").flatMap(_ => IO.pure(false))
+        logger.warn(s"\t=> ${episode.confidence.toString}% FAIL").flatMap(_ => IO.pure(false))
       case NoChangeRequired =>
-        logger.info(s"\t=> ${episode.confidence}% OK").flatMap(_ => IO.pure(true))
+        logger.info(s"\t=> ${episode.confidence.toString}% OK").flatMap(_ => IO.pure(true))
       case SuccessfullyMatched =>
         val newFileName = getNewFileName(episode)
-        logger.info(s"\t=> ${episode.confidence}% FAIL ${newFileName}").flatMap(_ => IO.pure(false))
+        logger.info(s"\t=> ${episode.confidence.toString}% FAIL ${newFileName}").flatMap(_ => IO.pure(false))
     }
   }
 
@@ -139,7 +138,7 @@ class VerifyRemuxCoreLogic(
   private def getMatchStatus(episode: MatchedSubtitledEpisode): MatchStatus = {
     val newFileName = getNewFileName(episode)
     val targetFile = fileSystem.absoluteToRelative(newFileName, episode.fileName)
-    if (episode.confidence < jobConfig.minimumConfidence) {
+    if (episode.confidence < jobConfig.minimumConfidence.getOrElse(40)) {
       FailedToMatch
     } else if (episode.fileName == targetFile) {
       NoChangeRequired

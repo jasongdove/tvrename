@@ -44,12 +44,12 @@ class ReferenceSubtitleDownloaderImpl(
 
   case class EpisodeSearchResults(episodeNumber: Int, searchResults: List[SearchResult])
 
-  private val targetFolder =
-    f"${config.cacheFolder}/reference/${jobConfig.seriesName}/Season ${jobConfig.seasonNumber.value}%02d"
+  private val targetFolder: String =
+    s"${config.cacheFolder}/reference/${jobConfig.seriesName}/Season ${"%02d".format(jobConfig.seasonNumber.value)}"
 
-  private val episodeCountFile = s"${targetFolder}/.episode-count"
+  private val episodeCountFile: String = s"${targetFolder}/.episode-count"
 
-  private val parser = new SRTParser
+  private val parser: SRTParser = new SRTParser
 
   private def expectedEpisodeCount: IO[Option[Int]] =
     for {
@@ -57,7 +57,7 @@ class ReferenceSubtitleDownloaderImpl(
       lines <- if (exists) fileSystem.readLines(episodeCountFile) else IO.pure(List.empty)
     } yield lines.headOption.map(_.toInt)
 
-  private def actualEpisodeCount: IO[Int] = fileSystem.walk(targetFolder).map(_.count(f => f.endsWith(".srt")))
+  private def actualEpisodeCount: IO[Int] = fileSystem.walk(targetFolder, recursive = false).map(_.count(f => f.endsWith(".srt")))
 
   private def search(): IO[List[EpisodeSearchResults]] =
     IO {
@@ -91,9 +91,9 @@ class ReferenceSubtitleDownloaderImpl(
         for {
           searchResults <- search()
           // TODO: handle no episodes found for series/season
-          lastEpisode = searchResults.map(_.episodeNumber).max
+          lastEpisode = searchResults.foldLeft(0)((acc, result) => math.max(acc, result.episodeNumber))
           _ <-
-            logger.debug(s"${jobConfig.seriesName} Season ${jobConfig.seasonNumber.value} has ${lastEpisode} episodes")
+            logger.debug(s"${jobConfig.seriesName} Season ${jobConfig.seasonNumber.value.toString} has ${lastEpisode.toString} episodes")
           _ <- fileSystem.writeToFile(episodeCountFile, lastEpisode.toString)
           _ <- downloadAllEpisodes(searchResults)
         } yield ()
@@ -111,7 +111,7 @@ class ReferenceSubtitleDownloaderImpl(
         .replace("[season]", f"${jobConfig.seasonNumber.value}%02d")
         .replace("[episode]", f"${episode.episodeNumber}%02d")
 
-      val targetFile = f"${targetFolder}/${template}.srt"
+      val targetFile = s"$targetFolder/$template.srt"
 
       val downloadAll: OptionT[IO, Unit] = for {
         exists <- OptionT.liftF(fileSystem.exists(targetFile))
@@ -120,11 +120,7 @@ class ReferenceSubtitleDownloaderImpl(
         _ <- OptionT.liftF(fileSystem.rename(subtitleFile.fileName, targetFile))
       } yield ()
 
-      downloadAll
-        .recoverWith(_ =>
-          OptionT.liftF(logger.warn(s"Unable to locate valid subtitle for episode ${episode.episodeNumber}"))
-        )
-        .value
+      downloadAll.value
     }
   }
 

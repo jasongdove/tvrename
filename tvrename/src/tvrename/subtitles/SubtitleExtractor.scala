@@ -10,6 +10,7 @@ import java.io.File
 import cats.effect.IO
 import cats.implicits._
 import os.temp
+import cats.data.NonEmptyList
 
 case class UnknownSubtitledEpisode(fileName: String, subtitles: Option[Subtitles])
 
@@ -72,7 +73,7 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
       case None => IO.pure(None)
     }
 
-  private def checkAllExist(fileNames: Set[String]): IO[Boolean] =
+  private def checkAllExist(fileNames: NonEmptyList[String]): IO[Boolean] =
     fileNames.foldLeft[IO[Boolean]](IO.pure(true)) { (acc, fileName) =>
       for {
         success <- fileSystem.exists(fileName)
@@ -88,12 +89,12 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
     val tempFileName = fileSystem.getTempFileName.replace(".", "")
 
     for {
-      _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber} of type $trackType")
+      _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber.toString} of type $trackType")
       _ <- fileSystem.call(
         "mkvextract",
         episode.fileName,
         "tracks",
-        s"${subtitlesTrack.trackNumber}:${tempFileName}"
+        s"${subtitlesTrack.trackNumber.toString}:${tempFileName}"
       )
       _ <- renameTempFiles(subtitlesTrack, tempFileName)
     } yield Some(subtitlesTrack.subtitles)

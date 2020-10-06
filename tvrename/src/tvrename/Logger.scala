@@ -13,9 +13,11 @@ trait Logger {
 object LoggerImpl extends Logger {
   val logger = LoggerFactory
     .getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
-    .asInstanceOf[ch.qos.logback.classic.Logger]
 
-  logger.setLevel(Level.DEBUG)
+  logger match {
+    case l: ch.qos.logback.classic.Logger =>
+      l.setLevel(Level.DEBUG)
+  }
 
   def debug(msg: String): IO[Unit] =
     IO {

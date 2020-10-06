@@ -26,7 +26,7 @@ case class BroadcastJobConfig(
   template: String,
   seriesId: SeriesId,
   seasonNumber: SeasonNumber,
-  recursive: Boolean = false
+  recursive: Boolean
 ) extends JobConfig
 
 case class RemuxJobConfig(
@@ -35,6 +35,6 @@ case class RemuxJobConfig(
   seriesId: SeriesId,
   seriesName: String,
   seasonNumber: SeasonNumber,
-  minimumConfidence: Int = 40,
-  recursive: Boolean = false
+  minimumConfidence: Option[Int],
+  recursive: Boolean
 ) extends JobConfig

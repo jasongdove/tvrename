@@ -13,11 +13,7 @@ object Main extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
 
     resources(args)
-      .use {
-        case (coreLogic) => {
-          coreLogic.run()
-        }
-      }
+      .use(coreLogic => coreLogic.run())
       .as(ExitCode.Success)
   }
 

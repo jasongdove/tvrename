@@ -51,7 +51,7 @@ class TVDBImpl(config: TVDBConfig) extends TVDB {
     upickle.default.read[Episodes](
       requests
         .get(
-          s"$baseUrl/series/${seriesId.value}/episodes/query?airedSeason=${seasonNumber.value}&page=$page",
+          s"$baseUrl/series/${seriesId.value.toString}/episodes/query?airedSeason=${seasonNumber.value.toString}&page=${page.toString}",
           headers = Map("Authorization" -> s"Bearer $jwt", "Accept" -> "application/json")
         )
         .text()

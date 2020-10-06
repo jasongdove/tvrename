@@ -28,7 +28,7 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
     val targetFolder =
       f"${config.cacheFolder}/reference/${jobConfig.seriesName}/Season ${jobConfig.seasonNumber.value}%02d"
     fileSystem
-      .walk(targetFolder)
+      .walk(targetFolder, recursive = false)
       .map { files =>
         val result = files.filter(_.endsWith(".srt")).map { fileName =>
           val parseAttempt = Try { parser.parse(new File(fileName)) }
@@ -71,8 +71,9 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
       topMatch.map { m =>
         m.fileName match {
           case pattern(season, episode) =>
-            if (m.confidence > jobConfig.minimumConfidence)
+            if (m.confidence > jobConfig.minimumConfidence.getOrElse(40)) {
               subtitles.find(_.fileName == m.fileName).map(subtitles.-=)
+            }
             EpisodeMatch(season.toInt, episode.toInt, m.confidence)
         }
       }

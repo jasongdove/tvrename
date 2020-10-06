@@ -1,13 +1,14 @@
 package tvrename.subtitles
 
 import org.ebml.matroska.MatroskaFileTrack
+import cats.data.NonEmptyList
 
 sealed trait Subtitles {
   def baseFileName: String
-  def extensions: Set[String]
+  def extensions: NonEmptyList[String]
   def priority: Int
 
-  def fileNames: Set[String] = extensions.map(e => s"${baseFileName}.${e}")
+  def fileNames: NonEmptyList[String] = extensions.map(e => s"${baseFileName}.${e}")
   def primaryFileName = fileNames.head
 }
 
@@ -24,18 +25,18 @@ object Subtitles {
 }
 
 case class SubRip(baseFileName: String) extends Subtitles {
-  def extensions = Set("srt")
+  def extensions = NonEmptyList.of("srt")
 
   // these are most likely CC => text from makemkv
   def priority = 3
 }
 
 case class VobSub(baseFileName: String) extends Subtitles {
-  def extensions = Set("sub", "idx")
+  def extensions = NonEmptyList.of("sub", "idx")
   def priority = 2
 }
 
 case class PGS(baseFileName: String) extends Subtitles {
-  def extensions = Set("sup")
+  def extensions = NonEmptyList.of("sup")
   def priority = 1
 }
