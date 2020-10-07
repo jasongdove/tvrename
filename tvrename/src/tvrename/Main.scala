@@ -1,5 +1,6 @@
 package tvrename
 
+import cats.data.EitherT
 import cats.effect._
 import pureconfig._
 import pureconfig.generic.auto._
@@ -13,11 +14,16 @@ object Main extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
 
     resources(args)
-      .use(coreLogic => coreLogic.run())
+      .use { res =>
+        res match {
+          case Right(coreLogic) => coreLogic.run()
+          case Left(value)      => IO(println(value))
+        }
+      }
       .as(ExitCode.Success)
   }
 
-  private def resources(args: List[String]): Resource[IO, CoreLogic] = {
+  private def resources(args: List[String]): Resource[IO, Either[TVRenameError, CoreLogic]] = {
     val configFolder =
       sys.env.getOrElse("TVRENAME_CONFIG_FOLDER", s"${System.getProperty("user.home")}/.config/tvrename")
 
@@ -33,26 +39,21 @@ object Main extends IOApp {
       blocker <- Blocker[IO]
       config <- ConfigSource.file(s"$configFolder/tvrename.conf").loadF[IO, TVRenameConfig](blocker).asResource
       command <- commandIO.asResource
-      jobConfig <- command match {
-        case Rename =>
-          ConfigSource.file(terminalConfig.renameCommand.job()).loadF[IO, JobConfig](blocker).asResource
-        case Verify =>
-          ConfigSource.file(terminalConfig.verifyCommand.job()).loadF[IO, JobConfig](blocker).asResource
-      }
+      jobConfig <- loadConfig(command, terminalConfig, blocker).value.asResource
     } yield {
       val fileSystem: FileSystem = FileSystemImpl
       jobConfig match {
-        case broadcastJobConfig: BroadcastJobConfig =>
+        case Right(broadcastJobConfig: BroadcastJobConfig) =>
           val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
           val classifier = new BroadcastEpisodeClassifier(broadcastJobConfig, fileSystem)
           val coreLogic: CoreLogic = new BroadcastCoreLogic(broadcastJobConfig, tvdb, classifier, logger)
-          coreLogic
-        case remuxJobConfig: RemuxJobConfig =>
+          Right(coreLogic)
+        case Right(remuxJobConfig: RemuxJobConfig) =>
           val subtitleDownloader: ReferenceSubtitleDownloader =
             new ReferenceSubtitleDownloaderImpl(config, remuxJobConfig, fileSystem, logger)
           val classifier = new RemuxEpisodeClassifier(command, remuxJobConfig, fileSystem)
           val subtitleExtractor: SubtitleExtractor =
-            new SubtitleExtractorImpl(config, remuxJobConfig, fileSystem, logger)
+            new SubtitleExtractorImpl(config, fileSystem, logger)
           val subtitleProcessor: SubtitleProcessor = new ExternalSubtitleProcessor(config, fileSystem, logger)
           val subtitleMatcher: SubtitleMatcher = new SubtitleMatcherImpl(config, remuxJobConfig, fileSystem)
           val coreLogic: CoreLogic = command match {
@@ -81,8 +82,23 @@ object Main extends IOApp {
               )
           }
 
-          coreLogic
+          Right(coreLogic)
+        case Left(value) => Left(value)
       }
     }
   }
+
+  private def loadConfig(
+    command: Command,
+    terminalConfig: TerminalConfig,
+    blocker: Blocker
+  ): EitherT[IO, TVRenameError, JobConfig] =
+    command match {
+      case Rename =>
+        EitherT.right(ConfigSource.file(terminalConfig.renameCommand.job()).loadF[IO, JobConfig](blocker))
+      case Verify =>
+        EitherT.right(ConfigSource.file(terminalConfig.verifyCommand.job()).loadF[IO, JobConfig](blocker))
+      case _ =>
+        EitherT.leftT(InvalidJobConfiguration)
+    }
 }

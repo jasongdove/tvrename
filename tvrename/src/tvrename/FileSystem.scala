@@ -1,6 +1,5 @@
 package tvrename
 
-import os.copy.over
 import cats.effect.IO
 
 trait FileSystem {
@@ -38,14 +37,14 @@ object FileSystemImpl extends FileSystem {
   override def makeDirs(path: String): IO[Unit] = IO(os.makeDir.all(os.Path(path)))
 
   override def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String): IO[Unit] =
-    IO(os.proc(command).call(stdin = stream, stdout = os.Path(targetFile), mergeErrIntoOut = true))
+    IO { val _ = os.proc(command).call(stdin = stream, stdout = os.Path(targetFile), mergeErrIntoOut = true) }
 
   override def exists(path: String): IO[Boolean] =
     IO(os.exists(os.Path(path)))
 
   override def getTempFileName(): String = os.temp().toString
 
-  override def call(command: String*): IO[Unit] = IO(os.proc(command).call(mergeErrIntoOut = true))
+  override def call(command: String*): IO[Unit] = IO { val _ = os.proc(command).call(mergeErrIntoOut = true) }
 
   override def readLines(path: String): IO[Seq[String]] = IO(os.read.lines(os.Path(path)))
 

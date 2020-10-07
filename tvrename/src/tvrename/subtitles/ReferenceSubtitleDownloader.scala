@@ -62,12 +62,12 @@ class ReferenceSubtitleDownloaderImpl(
   private def search(): IO[List[EpisodeSearchResults]] =
     IO {
       val r = requests.get(
-        s"https://rest.opensubtitles.org/search/imdbid-${jobConfig.seriesId.value}/season-${jobConfig.seasonNumber.value}/sublanguageid-eng",
+        s"https://rest.opensubtitles.org/search/imdbid-${jobConfig.seriesId.value.toString}/season-${jobConfig.seasonNumber.value.toString}/sublanguageid-eng",
         headers = Map("user-agent" -> "tvrename v1")
       )
 
       upickle.default
-        .read[List[SearchResult]](r.text)
+        .read[List[SearchResult]](r.text())
         .filterNot(_.SubFileName.toLowerCase.contains(".ita.")) // sometimes the wrong language is returned ???
         .filter(_.SubFormat.toLowerCase == "srt")
         .groupBy(_.SeriesEpisode.toInt)

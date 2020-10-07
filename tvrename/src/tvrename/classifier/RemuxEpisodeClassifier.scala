@@ -1,7 +1,6 @@
 package tvrename.classifier
 
 import scala.util.matching.Regex
-import java.time.{Instant, LocalDate, ZoneId}
 
 import tvrename._
 import tvrename.config._

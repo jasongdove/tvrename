@@ -6,10 +6,8 @@ import tvrename.classifier.UnknownRemuxEpisode
 import org.ebml.io.FileDataSource
 import org.ebml.matroska.{MatroskaFile, MatroskaFileTrack}
 import org.ebml.matroska.MatroskaFileTrack.TrackType
-import java.io.File
 import cats.effect.IO
 import cats.implicits._
-import os.temp
 import cats.data.NonEmptyList
 
 case class UnknownSubtitledEpisode(fileName: String, subtitles: Option[Subtitles])
@@ -18,7 +16,7 @@ trait SubtitleExtractor {
   def extractFromEpisode(episode: UnknownRemuxEpisode): IO[UnknownSubtitledEpisode]
 }
 
-class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fileSystem: FileSystem, logger: Logger)
+class SubtitleExtractorImpl(config: TVRenameConfig, fileSystem: FileSystem, logger: Logger)
     extends SubtitleExtractor {
 
   private case class SubtitlesTrack(trackNumber: Int, subtitles: Subtitles)
@@ -86,7 +84,7 @@ class SubtitleExtractorImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, f
     subtitlesTrack: SubtitlesTrack
   ): IO[Option[Subtitles]] = {
     val trackType = subtitlesTrack.subtitles.getClass.getSimpleName
-    val tempFileName = fileSystem.getTempFileName.replace(".", "")
+    val tempFileName = fileSystem.getTempFileName().replace(".", "")
 
     for {
       _ <- logger.debug(s"\tExtracting track ${subtitlesTrack.trackNumber.toString} of type $trackType")

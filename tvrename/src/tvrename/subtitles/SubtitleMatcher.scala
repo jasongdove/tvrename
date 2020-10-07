@@ -8,8 +8,6 @@ import java.io.File
 import scala.util.Success
 import scala.jdk.CollectionConverters._
 import cats.effect.IO
-import cats.implicits._
-import scala.util.matching.Regex.Match
 
 case class EpisodeMatch(seasonNumber: Int, episodeNumber: Int, confidence: Int)
 case class MatchedSubtitledEpisode(fileName: String, seasonNumber: Int, episodeNumber: Int, confidence: Int)
@@ -26,7 +24,7 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
   lazy val referenceSubtitles: IO[collection.mutable.Set[ReferenceSubtitle]] = {
     val parser = new SRTParser
     val targetFolder =
-      f"${config.cacheFolder}/reference/${jobConfig.seriesName}/Season ${jobConfig.seasonNumber.value}%02d"
+      s"${config.cacheFolder}/reference/${jobConfig.seriesName}/Season ${"%02d".format(jobConfig.seasonNumber.value)}"
     fileSystem
       .walk(targetFolder, recursive = false)
       .map { files =>
@@ -72,7 +70,7 @@ class SubtitleMatcherImpl(config: TVRenameConfig, jobConfig: RemuxJobConfig, fil
         m.fileName match {
           case pattern(season, episode) =>
             if (m.confidence > jobConfig.minimumConfidence.getOrElse(40)) {
-              subtitles.find(_.fileName == m.fileName).map(subtitles.-=)
+              val _ = subtitles.find(_.fileName == m.fileName).map(subtitles.-=)
             }
             EpisodeMatch(season.toInt, episode.toInt, m.confidence)
         }

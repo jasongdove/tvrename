@@ -4,10 +4,9 @@ import tvrename._
 import tvrename.config.TVRenameConfig
 import com.github.dnbn.submerge.api.parser.SRTParser
 import java.io.File
-import collection.JavaConverters._
 import cats.effect.IO
 import cats.implicits._
-import cats.syntax._
+import scala.jdk.CollectionConverters._
 
 case class UnknownProcessedSubtitledEpisode(fileName: String, lines: List[String])
 
