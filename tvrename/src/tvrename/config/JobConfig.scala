@@ -11,7 +11,7 @@ object Verify extends Command
 
 sealed trait JobConfig {
   def mediaFolder: String
-  def recursive: Boolean
+  def recursive: Option[Boolean]
   def template: String
 }
 
@@ -26,7 +26,7 @@ case class BroadcastJobConfig(
   template: String,
   seriesId: SeriesId,
   seasonNumber: SeasonNumber,
-  recursive: Boolean
+  recursive: Option[Boolean]
 ) extends JobConfig
 
 case class RemuxJobConfig(
@@ -36,5 +36,5 @@ case class RemuxJobConfig(
   seriesName: String,
   seasonNumber: SeasonNumber,
   minimumConfidence: Option[Int],
-  recursive: Boolean
+  recursive: Option[Boolean]
 ) extends JobConfig

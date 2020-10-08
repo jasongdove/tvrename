@@ -22,7 +22,7 @@ class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSy
     def isUnknown(fileName: String) = !knownPattern.matches(fileName)
 
     fileSystem
-      .walk(jobConfig.mediaFolder, jobConfig.recursive)
+      .walk(jobConfig.mediaFolder, jobConfig.recursive.getOrElse(false))
       .map(
         _.filter(isValid)
           .filter(command == Verify || isUnknown(_))

@@ -28,7 +28,7 @@ class BroadcastEpisodeClassifier(jobConfig: BroadcastJobConfig, fileSystem: File
         .toLocalDate
 
     fileSystem
-      .walk(jobConfig.mediaFolder, jobConfig.recursive)
+      .walk(jobConfig.mediaFolder, jobConfig.recursive.getOrElse(false))
       .map(
         _.filter(isValid)
           .filter(isUnknown)

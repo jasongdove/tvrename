@@ -15,10 +15,10 @@ trait TVDB {
 
 class TVDBImpl(config: TVDBConfig) extends TVDB {
 
-  private implicit val loginR: default.Reader[Login] = upickle.default.macroR[Login]
-  private implicit val linksR: default.Reader[Links] = upickle.default.macroR[Links]
-  private implicit val episodeDataR: default.Reader[EpisodeData] = upickle.default.macroR[EpisodeData]
-  private implicit val episodeR: default.Reader[Episodes] = upickle.default.macroR[Episodes]
+  implicit val loginR: default.Reader[Login] = upickle.default.macroR[Login]
+  implicit val linksR: default.Reader[Links] = upickle.default.macroR[Links]
+  implicit val episodeDataR: default.Reader[EpisodeData] = upickle.default.macroR[EpisodeData]
+  implicit val episodeR: default.Reader[Episodes] = upickle.default.macroR[Episodes]
 
   private val baseUrl = "https://api.thetvdb.com"
 
