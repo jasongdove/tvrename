@@ -110,7 +110,7 @@ class ReferenceSubtitleDownloaderImpl(
       _ <- logger.debug(searchResult.SubDownloadLink)
       uri <- Uri.fromString(searchResult.SubDownloadLink).liftTo[IO]
       request <- Method.GET(uri)
-      _ <- httpClient.stream(request).map(s => fileSystem.gunzipToFile(s.body, tempFile)).compile.drain
+      _ <- httpClient.stream(request).flatMap(s => fileSystem.gunzipToFile(s.body, tempFile)).compile.drain
       attempt <- cleanupAndParse(tempFile)
     } yield attempt
   }
