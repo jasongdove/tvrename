@@ -9,16 +9,16 @@ import tvrename.classifier._
 import tvrename.config._
 import tvrename.logic._
 import tvrename.subtitles._
+import org.http4s.client.blaze.BlazeClientBuilder
+import org.http4s.client.middleware.FollowRedirect
 
 object Main extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
 
     resources(args)
-      .use { res =>
-        res match {
-          case Right(coreLogic) => coreLogic.run()
-          case Left(value)      => IO(println(value))
-        }
+      .use {
+        case Right(coreLogic) => coreLogic.run()
+        case Left(value) => IO(println(value))
       }
       .as(ExitCode.Success)
   }
@@ -37,20 +37,22 @@ object Main extends IOApp {
 
     for {
       blocker <- Blocker[IO]
+      httpClient <- BlazeClientBuilder[IO](blocker.blockingContext).resource
+      followRedirectClient = FollowRedirect(1)(httpClient)
       config <- ConfigSource.file(s"$configFolder/tvrename.conf").loadF[IO, TVRenameConfig](blocker).asResource
       command <- commandIO.asResource
       jobConfig <- loadConfig(command, terminalConfig, blocker).value.asResource
     } yield {
-      val fileSystem: FileSystem = FileSystemImpl
+      val fileSystem: FileSystem = new FileSystemImpl(blocker)
       jobConfig match {
         case Right(broadcastJobConfig: BroadcastJobConfig) =>
-          val tvdb: TVDB = new TVDBImpl(config.tvdbConfig)
+          val tvdb: TVDB = new TVDBImpl(config.tvdbConfig, httpClient)
           val classifier = new BroadcastEpisodeClassifier(broadcastJobConfig, fileSystem)
           val coreLogic: CoreLogic = new BroadcastCoreLogic(broadcastJobConfig, tvdb, classifier, logger)
           Right(coreLogic)
         case Right(remuxJobConfig: RemuxJobConfig) =>
           val subtitleDownloader: ReferenceSubtitleDownloader =
-            new ReferenceSubtitleDownloaderImpl(config, remuxJobConfig, fileSystem, logger)
+            new ReferenceSubtitleDownloaderImpl(config, remuxJobConfig, followRedirectClient, fileSystem, logger)
           val classifier = new RemuxEpisodeClassifier(command, remuxJobConfig, fileSystem)
           val subtitleExtractor: SubtitleExtractor =
             new SubtitleExtractorImpl(config, fileSystem, logger)

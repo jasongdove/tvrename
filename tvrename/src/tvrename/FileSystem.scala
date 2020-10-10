@@ -1,6 +1,8 @@
 package tvrename
 
-import cats.effect.IO
+import cats.effect._
+import fs2.Stream
+import java.nio.file._
 
 trait FileSystem {
   def walk(path: String, recursive: Boolean): IO[IndexedSeq[String]]
@@ -9,7 +11,7 @@ trait FileSystem {
   def absoluteToRelative(path: String, relativeTo: String): String
   def relativeTo(path: String, relativeTo: String): String
   def makeDirs(path: String): IO[Unit]
-  def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String): IO[Unit]
+  def gunzipToFile(stream: Stream[IO, Byte], targetFile: String): Stream[IO, Unit]
   def exists(path: String): IO[Boolean]
   def getTempFileName(): String
   def call(command: String*): IO[Unit]
@@ -19,7 +21,7 @@ trait FileSystem {
   def concatPaths(one: String, two: String): String
 }
 
-object FileSystemImpl extends FileSystem {
+class FileSystemImpl(blocker: Blocker)(implicit cs: ContextShift[IO]) extends FileSystem {
   override def walk(path: String, recursive: Boolean): IO[IndexedSeq[String]] =
     IO(os.walk(os.Path(path), maxDepth = if (recursive) Int.MaxValue else 1).map(_.toString))
 
@@ -36,8 +38,12 @@ object FileSystemImpl extends FileSystem {
 
   override def makeDirs(path: String): IO[Unit] = IO(os.makeDir.all(os.Path(path)))
 
-  override def streamCommandToFile(stream: geny.Readable, command: String, targetFile: String): IO[Unit] =
-    IO { val _ = os.proc(command).call(stdin = stream, stdout = os.Path(targetFile), mergeErrIntoOut = true) }
+  override def gunzipToFile(stream: Stream[IO, Byte], targetFile: String): Stream[IO, Unit] =
+    stream
+      .through(fs2.compression.gunzip(1024))
+      .flatMap { gunzip =>
+        gunzip.content.through(fs2.io.file.writeAll(Paths.get(targetFile), blocker))
+      }
 
   override def exists(path: String): IO[Boolean] =
     IO(os.exists(os.Path(path)))

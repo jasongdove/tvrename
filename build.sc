@@ -18,8 +18,6 @@ object tvrename extends ScalaModule {
     Agg(
       ivy"org.typelevel::cats-effect:2.1.3",
       ivy"com.lihaoyi::os-lib:0.6.2",
-      ivy"com.lihaoyi::upickle:0.9.5",
-      ivy"com.lihaoyi::requests:0.5.1",
       ivy"com.github.pureconfig::pureconfig:0.13.0",
       ivy"com.github.pureconfig::pureconfig-cats-effect:0.13.0",
       ivy"org.rogach::scallop:3.5.1",
@@ -28,7 +26,9 @@ object tvrename extends ScalaModule {
       ivy"org.http4s::http4s-dsl:$http4sVersion",
       ivy"org.http4s::http4s-blaze-client:$http4sVersion",
       ivy"org.http4s::http4s-circe:$http4sVersion",
-      ivy"io.circe::circe-generic:0.12.3"
+      ivy"io.circe::circe-generic:0.12.3",
+      ivy"co.fs2::fs2-core:2.4.4",
+      ivy"co.fs2::fs2-io:2.4.4"
     )
 
   def scalacOptions =

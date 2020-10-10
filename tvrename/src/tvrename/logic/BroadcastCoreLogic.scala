@@ -10,8 +10,8 @@ class BroadcastCoreLogic(config: BroadcastJobConfig, tvdb: TVDB, classifier: Bro
   def run(): IO[Unit] =
     for {
       unknownEpisodes <- classifier.findUnknownEpisodes()
+      episodesForSeason <- tvdb.episodesForSeason(config.seriesId, config.seasonNumber)
     } yield {
-      val episodesForSeason = tvdb.episodesForSeason(config.seriesId, config.seasonNumber)
       val aired = new Aired(episodesForSeason)
 
       unknownEpisodes.foreach {

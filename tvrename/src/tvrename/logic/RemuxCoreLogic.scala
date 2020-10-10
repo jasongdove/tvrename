@@ -28,7 +28,7 @@ class RemuxCoreLogic(
 
   def identifyAndRenameEpisode(episode: UnknownRemuxEpisode): IO[Unit] = {
     val result = for {
-      _ <- OptionT.liftF(logger.debug(fileSystem.getFileName(episode.fileName)))
+      _ <- OptionT.liftF(logger.debug(s"${fileSystem.getFileName(episode.fileName)} (${episode.movieHash})"))
       subtitledEpisode <- OptionT.liftF(extractor.extractFromEpisode(episode))
       processedSubtitledEpisode <- OptionT.liftF(processor.processEpisode(subtitledEpisode))
       matchedEpisode <- OptionT(matcher.matchEpisode(processedSubtitledEpisode))

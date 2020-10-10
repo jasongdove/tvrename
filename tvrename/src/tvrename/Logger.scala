@@ -1,6 +1,5 @@
 package tvrename
 
-import ch.qos.logback.classic.Level
 import org.slf4j.LoggerFactory
 import cats.effect.IO
 
@@ -12,12 +11,7 @@ trait Logger {
 
 object LoggerImpl extends Logger {
   val logger = LoggerFactory
-    .getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
-
-  logger match {
-    case l: ch.qos.logback.classic.Logger =>
-      l.setLevel(Level.DEBUG)
-  }
+    .getLogger("tvrename")
 
   def debug(msg: String): IO[Unit] =
     IO {

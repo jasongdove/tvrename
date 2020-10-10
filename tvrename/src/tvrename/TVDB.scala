@@ -2,59 +2,64 @@ package tvrename
 
 import tvrename.config._
 
-import upickle.default
+import cats.effect._
+import cats.implicits._
+import io.circe.generic.auto._
+import org.http4s._
+import org.http4s.circe._
+import org.http4s.client.Client
+import org.http4s.client.dsl.io._
 
 case class Login(token: String)
 case class Links(first: Int, last: Int)
 case class EpisodeData(firstAired: String, airedEpisodeNumber: Int)
-case class Episodes(links: Links, data: Seq[EpisodeData])
+case class Episodes(links: Links, data: List[EpisodeData])
 
 trait TVDB {
-  def episodesForSeason(seriesId: SeriesId, seasonNumber: SeasonNumber): Seq[EpisodeData]
+  def episodesForSeason(seriesId: SeriesId, seasonNumber: SeasonNumber): IO[List[EpisodeData]]
 }
 
-class TVDBImpl(config: TVDBConfig) extends TVDB {
+class TVDBImpl(config: TVDBConfig, httpClient: Client[IO]) extends TVDB {
 
-  implicit val loginR: default.Reader[Login] = upickle.default.macroR[Login]
-  implicit val linksR: default.Reader[Links] = upickle.default.macroR[Links]
-  implicit val episodeDataR: default.Reader[EpisodeData] = upickle.default.macroR[EpisodeData]
-  implicit val episodeR: default.Reader[Episodes] = upickle.default.macroR[Episodes]
+  implicit val loginDecoder: EntityDecoder[IO, Login] = jsonOf[IO, Login]
+  implicit val linksDecoder: EntityDecoder[IO, Links] = jsonOf[IO, Links]
+  implicit val episodeDataDecoder: EntityDecoder[IO, EpisodeData] = jsonOf[IO, EpisodeData]
+  implicit val episodeDecoder: EntityDecoder[IO, Episodes] = jsonOf[IO, Episodes]
+  implicit val configEncoder: EntityEncoder[IO, TVDBConfig] = jsonEncoderOf[IO, TVDBConfig]
 
   private val baseUrl = "https://api.thetvdb.com"
 
-  private lazy val jwt = upickle.default
-    .read[Login](
-      requests
-        .post(
-          s"$baseUrl/login",
-          data = ujson
-            .Obj(
-              "apikey" -> config.apiKey.value,
-              "username" -> config.username.value,
-              "userkey" -> config.userKey.value
-            )
-            .render(),
-          headers = Map("Content-Type" -> "application/json")
-        )
-        .text()
-    )
-    .token
+  def episodesForSeason(seriesId: SeriesId, seasonNumber: SeasonNumber): IO[List[EpisodeData]] =
+    for {
+      jwt <- getJwt()
+      firstPage <- pagedEpisodesForSeason(seriesId, seasonNumber, 1, jwt)
+      range <- IO.pure(Iterator.range(2, firstPage.links.last + 1).toList)
+      remainingPages <-
+        range.flatTraverse(page => pagedEpisodesForSeason(seriesId, seasonNumber, page, jwt).map(_.data))
+    } yield firstPage.data ++ remainingPages
 
-  def episodesForSeason(seriesId: SeriesId, seasonNumber: SeasonNumber): Seq[EpisodeData] = {
-    val firstPage = pagedEpisodesForSeason(seriesId, seasonNumber, 1)
-    firstPage.data ++ Iterator
-      .range(2, firstPage.links.last + 1)
-      .flatMap(pagedEpisodesForSeason(seriesId, seasonNumber, _).data)
-  }
+  private def pagedEpisodesForSeason(
+    seriesId: SeriesId,
+    seasonNumber: SeasonNumber,
+    page: Int,
+    jwt: String
+  ): IO[Episodes] =
+    for {
+      uri <-
+        Uri
+          .fromString(
+            s"$baseUrl/series/${seriesId.value.toString}/episodes/query?airedSeason=${seasonNumber.value.toString}&page=${page.toString}"
+          )
+          .liftTo[IO]
+      headers <- IO.pure(List(Header("Authorization", s"Bearer $jwt"), Header("Accept", "application/json")))
+      request <- Method.GET(uri).map(_.withHeaders(headers: _*))
+      response <- httpClient.expect[Episodes](request)
+    } yield response
 
-  private def pagedEpisodesForSeason(seriesId: SeriesId, seasonNumber: SeasonNumber, page: Int): Episodes = {
-    upickle.default.read[Episodes](
-      requests
-        .get(
-          s"$baseUrl/series/${seriesId.value.toString}/episodes/query?airedSeason=${seasonNumber.value.toString}&page=${page.toString}",
-          headers = Map("Authorization" -> s"Bearer $jwt", "Accept" -> "application/json")
-        )
-        .text()
-    )
-  }
+  private def getJwt(): IO[String] =
+    for {
+      uri <- Uri.fromString(s"$baseUrl/login").liftTo[IO]
+      request <- Method.POST(config, uri)
+      response <- httpClient.expect[Login](request)
+    } yield response.token
 }
