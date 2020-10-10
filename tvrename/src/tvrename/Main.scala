@@ -18,7 +18,7 @@ object Main extends IOApp {
     resources(args)
       .use {
         case Right(coreLogic) => coreLogic.run()
-        case Left(value) => IO(println(value))
+        case Left(value)      => IO(println(value))
       }
       .as(ExitCode.Success)
   }
@@ -51,8 +51,16 @@ object Main extends IOApp {
           val coreLogic: CoreLogic = new BroadcastCoreLogic(broadcastJobConfig, tvdb, classifier, logger)
           Right(coreLogic)
         case Right(remuxJobConfig: RemuxJobConfig) =>
+          val openSubtitles: OpenSubtitles = new OpenSubtitlesImpl(followRedirectClient)
           val subtitleDownloader: ReferenceSubtitleDownloader =
-            new ReferenceSubtitleDownloaderImpl(config, remuxJobConfig, followRedirectClient, fileSystem, logger)
+            new ReferenceSubtitleDownloaderImpl(
+              config,
+              remuxJobConfig,
+              openSubtitles,
+              followRedirectClient,
+              fileSystem,
+              logger
+            )
           val classifier = new RemuxEpisodeClassifier(command, remuxJobConfig, fileSystem)
           val subtitleExtractor: SubtitleExtractor =
             new SubtitleExtractorImpl(config, fileSystem, logger)

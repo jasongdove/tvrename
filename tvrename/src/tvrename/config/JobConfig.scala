@@ -4,6 +4,7 @@ import pureconfig.generic.FieldCoproductHint
 
 case class SeriesId(value: Int) extends AnyVal
 case class SeasonNumber(value: Int) extends AnyVal
+case class EpisodeNumber(value: Int) extends AnyVal
 
 sealed trait Command
 object Rename extends Command
