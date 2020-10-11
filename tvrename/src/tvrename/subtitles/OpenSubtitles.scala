@@ -42,7 +42,7 @@ class OpenSubtitlesImpl(httpClient: Client[IO]) extends OpenSubtitles {
         .filterNot(_.SubFileName.toLowerCase.contains(".ita.")) // sometimes the wrong language is returned ???
         .filter(_.SubFormat.toLowerCase == "srt")
         .groupBy(s => EpisodeNumber(s.SeriesEpisode.toInt))
-        .map { case (k, v) => EpisodeSearchResults(k, v) }
+        .map { case (episodeNumber, results) => EpisodeSearchResults(episodeNumber, results) }
         .toList
         .sortBy(_.episodeNumber.value)
     }

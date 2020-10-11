@@ -38,7 +38,6 @@ object Main extends IOApp {
     for {
       blocker <- Blocker[IO]
       httpClient <- BlazeClientBuilder[IO](blocker.blockingContext).resource
-      followRedirectClient = FollowRedirect(1)(httpClient)
       config <- ConfigSource.file(s"$configFolder/tvrename.conf").loadF[IO, TVRenameConfig](blocker).asResource
       command <- commandIO.asResource
       jobConfig <- loadConfig(command, terminalConfig, blocker).value.asResource
@@ -51,13 +50,14 @@ object Main extends IOApp {
           val coreLogic: CoreLogic = new BroadcastCoreLogic(broadcastJobConfig, tvdb, classifier, logger)
           Right(coreLogic)
         case Right(remuxJobConfig: RemuxJobConfig) =>
+          val followRedirectClient = FollowRedirect(1)(httpClient)
           val openSubtitles: OpenSubtitles = new OpenSubtitlesImpl(followRedirectClient)
           val subtitleDownloader: ReferenceSubtitleDownloader =
             new ReferenceSubtitleDownloaderImpl(
               config,
               remuxJobConfig,
               openSubtitles,
-              followRedirectClient,
+              httpClient,
               fileSystem,
               logger
             )

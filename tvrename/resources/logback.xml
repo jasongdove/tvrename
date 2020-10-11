@@ -13,9 +13,9 @@
         <appender-ref ref="STDOUT" />
     </logger>
 
-    <logger name="tvrename" level="debug">
-        <appender-ref ref="STDOUT" />
-    </logger>
+    <logger name="tvrename" level="debug" />
+
+    <logger name="org.http4s" level="warn" />
 
     <root level="info">
         <appender-ref ref="STDOUT"/>
