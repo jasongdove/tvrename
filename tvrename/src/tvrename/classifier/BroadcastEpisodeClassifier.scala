@@ -22,7 +22,7 @@ class BroadcastEpisodeClassifier(jobConfig: BroadcastJobConfig, fileSystem: File
     def dateBroadcasted(fileName: String): LocalDate =
       Instant
         .ofEpochMilli(
-          fileSystem.getModifyTime(fileName) - 7200000
+          fileSystem.getModifyTime(fileName) - 7210000
         ) // offset by two hours until we read metadata
         .atZone(ZoneId.systemDefault)
         .toLocalDate
