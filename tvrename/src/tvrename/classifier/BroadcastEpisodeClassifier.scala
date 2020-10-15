@@ -13,7 +13,7 @@ class BroadcastEpisodeClassifier(jobConfig: BroadcastJobConfig, fileSystem: File
     extends EpisodeClassifier[UnknownBroadcastEpisode](jobConfig, fileSystem) {
   def findUnknownEpisodes(): IO[List[UnknownBroadcastEpisode]] = {
     val validExtensions = List(".mkv", ".ts")
-    val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{3})\..*""".r
+    val knownPattern: Regex = """.*s([0-9]{2})e([0-9]{2})\..*""".r
 
     def isValid(fileName: String) = validExtensions.exists(fileName.endsWith)
     def isUnknown(fileName: String) = !knownPattern.matches(fileName)

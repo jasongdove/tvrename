@@ -12,8 +12,12 @@ object jebml extends JavaModule {
 
 object tvrename extends ScalaModule {
   def scalaVersion = "2.13.3"
+
   def moduleDeps = Seq(jebml)
+
   val http4sVersion = "0.21.7"
+  val circeVersion = "0.12.3"
+
   def ivyDeps =
     Agg(
       ivy"org.typelevel::cats-effect:2.1.3",
@@ -26,7 +30,7 @@ object tvrename extends ScalaModule {
       ivy"org.http4s::http4s-dsl:$http4sVersion",
       ivy"org.http4s::http4s-blaze-client:$http4sVersion",
       ivy"org.http4s::http4s-circe:$http4sVersion",
-      ivy"io.circe::circe-generic:0.12.3",
+      ivy"io.circe::circe-generic:$circeVersion",
       ivy"co.fs2::fs2-core:2.4.4",
       ivy"co.fs2::fs2-io:2.4.4"
     )

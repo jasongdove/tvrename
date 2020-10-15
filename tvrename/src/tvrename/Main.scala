@@ -45,9 +45,16 @@ object Main extends IOApp {
       val fileSystem: FileSystem = new FileSystemImpl(blocker)
       jobConfig match {
         case Right(broadcastJobConfig: BroadcastJobConfig) =>
-          val tvdb: TVDB = new TVDBImpl(config.tvdbConfig, httpClient)
+          val scraper: BroadcastScraper = new BroadcastScraperImpl(broadcastJobConfig, httpClient)
           val classifier = new BroadcastEpisodeClassifier(broadcastJobConfig, fileSystem)
-          val coreLogic: CoreLogic = new BroadcastCoreLogic(broadcastJobConfig, tvdb, classifier, logger)
+          val coreLogic: CoreLogic = new BroadcastCoreLogic(
+            broadcastJobConfig,
+            terminalConfig.renameCommand.dryRun(),
+            scraper,
+            classifier,
+            fileSystem,
+            logger
+          )
           Right(coreLogic)
         case Right(remuxJobConfig: RemuxJobConfig) =>
           val followRedirectClient = FollowRedirect(1)(httpClient)

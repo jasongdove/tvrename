@@ -16,8 +16,7 @@ trait SubtitleExtractor {
   def extractFromEpisode(episode: UnknownRemuxEpisode): IO[UnknownSubtitledEpisode]
 }
 
-class SubtitleExtractorImpl(config: TVRenameConfig, fileSystem: FileSystem, logger: Logger)
-    extends SubtitleExtractor {
+class SubtitleExtractorImpl(config: TVRenameConfig, fileSystem: FileSystem, logger: Logger) extends SubtitleExtractor {
 
   private case class SubtitlesTrack(trackNumber: Int, subtitles: Subtitles)
 

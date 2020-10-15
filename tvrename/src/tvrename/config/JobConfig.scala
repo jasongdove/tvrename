@@ -25,8 +25,12 @@ object JobConfig {
 case class BroadcastJobConfig(
   mediaFolder: String,
   template: String,
-  seriesId: SeriesId,
   seasonNumber: SeasonNumber,
+  jsonUrl: String,
+  arraySelector: String,
+  isoDateProperty: String,
+  episodeNumberProperty: String,
+  seasonNumberProperty: String,
   recursive: Option[Boolean]
 ) extends JobConfig
 
