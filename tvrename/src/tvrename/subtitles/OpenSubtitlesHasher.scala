@@ -1,5 +1,6 @@
 package tvrename.subtitles
 
+import cats.effect.IO
 import java.io.{File, FileInputStream}
 import java.nio.{ByteBuffer, ByteOrder, LongBuffer}
 import java.nio.channels.FileChannel.MapMode
@@ -9,23 +10,26 @@ import scala.math.{min, max}
 object OpenSubtitlesHasher {
   private val hashChunkSize = 64L * 1024L
 
-  def computeHash(file: File): String = {
-    val fileSize = file.length
-    val chunkSizeForFile = min(fileSize, hashChunkSize)
+  def computeHash(fileName: String): IO[String] =
+    IO {
+      val file = new File(fileName)
 
-    val fileChannel = new FileInputStream(file).getChannel
+      val fileSize = file.length
+      val chunkSizeForFile = min(fileSize, hashChunkSize)
 
-    try {
-      val head = computeHashForChunk(fileChannel.map(MapMode.READ_ONLY, 0, chunkSizeForFile))
-      val tail = computeHashForChunk(
-        fileChannel.map(MapMode.READ_ONLY, max(fileSize - hashChunkSize, 0), chunkSizeForFile)
-      )
+      val fileChannel = new FileInputStream(file).getChannel
 
-      "%016x".format(fileSize + head + tail)
-    } finally {
-      fileChannel.close()
+      try {
+        val head = computeHashForChunk(fileChannel.map(MapMode.READ_ONLY, 0, chunkSizeForFile))
+        val tail = computeHashForChunk(
+          fileChannel.map(MapMode.READ_ONLY, max(fileSize - hashChunkSize, 0), chunkSizeForFile)
+        )
+
+        "%016x".format(fileSize + head + tail)
+      } finally {
+        fileChannel.close()
+      }
     }
-  }
 
   private def computeHashForChunk(buffer: ByteBuffer): Long = {
     def doCompute(longBuffer: LongBuffer, hash: Long): Long = {

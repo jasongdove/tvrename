@@ -4,13 +4,9 @@ import scala.util.matching.Regex
 
 import tvrename._
 import tvrename.config._
-import tvrename.subtitles.OpenSubtitlesHasher
-import java.io.File
 import cats.effect.IO
 
-case class UnknownRemuxEpisode(fileName: String) extends UnknownEpisode {
-  lazy val movieHash = OpenSubtitlesHasher.computeHash(new File(fileName))
-}
+case class UnknownRemuxEpisode(fileName: String) extends UnknownEpisode
 
 class RemuxEpisodeClassifier(command: Command, jobConfig: RemuxJobConfig, fileSystem: FileSystem)
     extends EpisodeClassifier[UnknownRemuxEpisode](jobConfig, fileSystem) {

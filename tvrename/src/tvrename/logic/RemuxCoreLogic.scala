@@ -28,8 +28,9 @@ class RemuxCoreLogic(
 
   def identifyAndRenameEpisode(episode: UnknownRemuxEpisode): IO[Unit] = {
     val result = for {
-      _ <- OptionT.liftF(logger.debug(s"${fileSystem.getFileName(episode.fileName)} (${episode.movieHash})"))
-      subtitledEpisode <- OptionT.liftF(extractor.extractFromEpisode(episode))
+      movieHash <- OptionT.liftF(OpenSubtitlesHasher.computeHash(episode.fileName))
+      _ <- OptionT.liftF(logger.debug(s"${fileSystem.getFileName(episode.fileName)} ($movieHash)"))
+      subtitledEpisode <- OptionT.liftF(extractor.extractFromEpisode(episode, movieHash))
       processedSubtitledEpisode <- OptionT.liftF(processor.processEpisode(subtitledEpisode))
       matchedEpisode <- OptionT(matcher.matchEpisode(processedSubtitledEpisode))
       _ <- OptionT.liftF(renameEpisode(matchedEpisode))
@@ -105,8 +106,9 @@ class VerifyRemuxCoreLogic(
 
   def identifyAndValidateEpisode(episode: UnknownRemuxEpisode): IO[Boolean] =
     for {
-      _ <- logger.debug(s"${fileSystem.getFileName(episode.fileName)} (${episode.movieHash})")
-      subtitledEpisode <- extractor.extractFromEpisode(episode)
+      movieHash <- OpenSubtitlesHasher.computeHash(episode.fileName)
+      _ <- logger.debug(s"${fileSystem.getFileName(episode.fileName)} ($movieHash)")
+      subtitledEpisode <- extractor.extractFromEpisode(episode, movieHash)
       processedSubtitledEpisode <- processor.processEpisode(subtitledEpisode)
       matchStatus <- matcher.matchEpisode(processedSubtitledEpisode)
       result <- matchStatus.map(validateEpisode).getOrElse(IO.pure(false))

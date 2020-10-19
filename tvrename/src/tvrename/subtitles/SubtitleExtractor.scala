@@ -13,7 +13,7 @@ import cats.data.NonEmptyList
 case class UnknownSubtitledEpisode(fileName: String, subtitles: Option[Subtitles])
 
 trait SubtitleExtractor {
-  def extractFromEpisode(episode: UnknownRemuxEpisode): IO[UnknownSubtitledEpisode]
+  def extractFromEpisode(episode: UnknownRemuxEpisode, movieHash: String): IO[UnknownSubtitledEpisode]
 }
 
 class SubtitleExtractorImpl(config: TVRenameConfig, fileSystem: FileSystem, logger: Logger) extends SubtitleExtractor {
@@ -25,21 +25,21 @@ class SubtitleExtractorImpl(config: TVRenameConfig, fileSystem: FileSystem, logg
       Subtitles.fromTrack(track, baseFileName).map(SubtitlesTrack(track.getTrackNo - 1, _))
   }
 
-  def extractFromEpisode(episode: UnknownRemuxEpisode): IO[UnknownSubtitledEpisode] =
+  def extractFromEpisode(episode: UnknownRemuxEpisode, movieHash: String): IO[UnknownSubtitledEpisode] =
     for {
-      subtitlesTrack <- identifySubtitlesTrack(episode)
+      subtitlesTrack <- identifySubtitlesTrack(episode, movieHash)
       extracted <- extractFromEpisode(episode, subtitlesTrack)
     } yield UnknownSubtitledEpisode(episode.fileName, extracted)
 
-  private def identifySubtitlesTrack(episode: UnknownRemuxEpisode): IO[Option[SubtitlesTrack]] = {
-    val folderOne = s"${episode.movieHash.substring(0, 2)}"
-    val folderTwo = s"${episode.movieHash.substring(2, 4)}"
+  private def identifySubtitlesTrack(episode: UnknownRemuxEpisode, movieHash: String): IO[Option[SubtitlesTrack]] = {
+    val folderOne = s"${movieHash.substring(0, 2)}"
+    val folderTwo = s"${movieHash.substring(2, 4)}"
 
     val targetFolder = s"${config.cacheFolder}/extracted/${folderOne}/${folderTwo}"
     for {
       _ <- fileSystem.makeDirs(targetFolder)
     } yield {
-      val cacheFileNameWithoutExtension = s"${targetFolder}/${episode.movieHash}"
+      val cacheFileNameWithoutExtension = s"${targetFolder}/$movieHash"
 
       val dataSource = new FileDataSource(episode.fileName)
       val matroska = new MatroskaFile(dataSource)
