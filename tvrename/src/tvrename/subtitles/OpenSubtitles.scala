@@ -11,14 +11,14 @@ import tvrename.config._
 
 case class SearchResult(
   SubFileName: String,
-  InfoFormat: String,
+  InfoFormat: Option[String],
   SubFormat: String,
   SeriesSeason: String,
   SeriesEpisode: String,
   SubDownloadLink: String,
   Score: Double
 ) {
-  def isWebDL: Boolean = Option(InfoFormat).getOrElse("").toLowerCase == "web-dl"
+  def isWebDL: Boolean = InfoFormat.getOrElse("").toLowerCase == "web-dl"
 }
 
 case class EpisodeSearchResults(episodeNumber: EpisodeNumber, searchResults: List[SearchResult])
