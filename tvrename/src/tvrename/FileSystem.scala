@@ -28,7 +28,7 @@ class FileSystemImpl(blocker: Blocker)(implicit cs: ContextShift[IO]) extends Fi
   override def getModifyTime(path: String): Long = os.mtime(os.Path(path))
 
   override def rename(source: String, dest: String): IO[Unit] =
-    IO(os.move(os.Path(source), os.Path(dest), replaceExisting = true))
+    IO(os.move(os.Path(source), os.Path(dest), replaceExisting = false))
 
   override def absoluteToRelative(path: String, relativeTo: String): String =
     (os.Path(relativeTo) / os.up / os.RelPath(path)).toString
