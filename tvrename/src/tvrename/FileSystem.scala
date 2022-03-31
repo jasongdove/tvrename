@@ -19,6 +19,8 @@ trait FileSystem {
   def getFileName(path: String): String
   def writeToFile(path: String, contents: String): IO[Unit]
   def concatPaths(one: String, two: String): String
+  def getParent(path: String): String
+  def changeExtension(path: String, extension: String): String
 }
 
 class FileSystemImpl(blocker: Blocker)(implicit cs: ContextShift[IO]) extends FileSystem {
@@ -64,4 +66,14 @@ class FileSystemImpl(blocker: Blocker)(implicit cs: ContextShift[IO]) extends Fi
 
   override def concatPaths(one: String, two: String): String =
     (os.Path(one) / two).toString
+
+  override def getParent(path: String): String =
+    os.Path(path).toNIO.getParent.toString
+
+  override def changeExtension(path: String, extension: String): String = {
+    val nioPath = os.Path(path).toNIO
+    val fileName = nioPath.getFileName.toString
+    val newFileName = fileName.substring(0, fileName.indexOf('.')) + extension
+    nioPath.resolveSibling(newFileName).toString
+  }
 }

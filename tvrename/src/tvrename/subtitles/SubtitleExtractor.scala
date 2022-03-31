@@ -28,7 +28,9 @@ class SubtitleExtractorImpl(config: TVRenameConfig, fileSystem: FileSystem, logg
   def extractFromEpisode(episode: UnknownRemuxEpisode, movieHash: String): IO[UnknownSubtitledEpisode] =
     for {
       subtitlesTrack <- identifySubtitlesTrack(episode, movieHash)
-      extracted <- extractFromEpisode(episode, subtitlesTrack)
+      extracted <-
+        if (subtitlesTrack.isDefined) extractFromEpisode(episode, subtitlesTrack)
+        else generateFromEpisode(episode, movieHash)
     } yield UnknownSubtitledEpisode(episode.fileName, extracted)
 
   private def identifySubtitlesTrack(episode: UnknownRemuxEpisode, movieHash: String): IO[Option[SubtitlesTrack]] = {
@@ -69,6 +71,45 @@ class SubtitleExtractorImpl(config: TVRenameConfig, fileSystem: FileSystem, logg
         } yield extracted
       case None => IO.pure(None)
     }
+
+  private def generateFromEpisode(episode: UnknownRemuxEpisode, movieHash: String): IO[Option[Subtitles]] = {
+    val folderOne = s"${movieHash.substring(0, 2)}"
+    val folderTwo = s"${movieHash.substring(2, 4)}"
+
+    val targetFolder = s"${config.cacheFolder}/extracted/${folderOne}/${folderTwo}"
+    val cacheFileNameWithoutExtension = s"${targetFolder}/$movieHash"
+    val subRip = SubRip(cacheFileNameWithoutExtension)
+
+    val episodeFileName = fileSystem.getFileName(episode.fileName)
+
+    val dockerIO = fileSystem.call(
+      "docker",
+      "run",
+      "--gpus",
+      "all",
+      "--user",
+      "1000:1000",
+      "--rm",
+      "-v",
+      s"${fileSystem.getParent(episode.fileName)}:/input",
+      "-v",
+      s"/tmp:/output",
+      "autosub",
+      "--file",
+      s"/input/${episodeFileName}",
+      "--format",
+      "srt"
+    )
+
+    for {
+      exists <- fileSystem.exists(subRip.primaryFileName)
+      _ <- fileSystem.makeDirs(targetFolder).whenA(!exists)
+      _ <- logger.debug("\tGenerating subtitles from audio").whenA(!exists)
+      _ <- dockerIO.whenA(!exists)
+      _ <- fileSystem.rename(fileSystem.changeExtension(s"/tmp/$episodeFileName", ".srt"), subRip.primaryFileName).whenA(!exists)
+      exists <- fileSystem.exists(subRip.primaryFileName)
+    } yield if (exists) Some(subRip) else None
+  }
 
   private def checkAllExist(fileNames: NonEmptyList[String]): IO[Boolean] =
     fileNames.foldLeft[IO[Boolean]](IO.pure(true)) { (acc, fileName) =>
