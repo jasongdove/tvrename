@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="LanguageExt.Core" Version="4.0.8-beta" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
         <PackageReference Include="Refit" Version="6.3.2" />
         <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
         <PackageReference Include="SubtitlesParser" Version="1.5.1" />

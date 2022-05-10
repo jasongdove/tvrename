@@ -48,11 +48,9 @@ public static class RemuxLogic
                 // find unknown episodes
                 foreach (string unknownEpisode in RemuxEpisodeClassifier.FindUnknownEpisodes(fullPath))
                 {
-                    // TODO: calc hash
-
-                    Log.Information("Found unknown episode {File}", Path.GetFileName(unknownEpisode));
-
                     // TODO: probe and extract subtitles from episode
+                    await SubtitleExtractor.ExtractSubtitles(unknownEpisode);
+
                     // TODO: process subtitles
                     // TODO: match episode
                     // TODO: rename? dry run?
