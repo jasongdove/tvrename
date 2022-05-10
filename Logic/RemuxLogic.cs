@@ -9,11 +9,11 @@ using TvRename.Subtitles;
 
 namespace TvRename.Logic;
 
-public static class RemuxLogic
+public class RemuxLogic
 {
     private static readonly Regex ReferencePattern = new(@".*s([\d]{2})e([\d]{2}).*");
 
-    public static async Task Run(string imdb, string? title, int? season, string folder)
+    public async Task<int> Run(string imdb, string? title, int? season, string folder)
     {
         string fullPath = Path.GetFullPath(folder);
 
@@ -26,7 +26,7 @@ public static class RemuxLogic
         string verifiedFileName = Path.Combine(fullPath, ".tvrename-verified");
         if (File.Exists(verifiedFileName))
         {
-            return;
+            return 0;
         }
 
         Option<string> maybeShowTitle = GetTitleFromFolder(Optional(title), fullPath);
@@ -37,7 +37,7 @@ public static class RemuxLogic
                 "Unable to detect show title {ShowTitle} or season number {SeasonNumber}",
                 maybeShowTitle,
                 maybeSeasonNumber);
-            return;
+            return 1;
         }
 
         foreach (string showTitle in maybeShowTitle)
@@ -62,7 +62,7 @@ public static class RemuxLogic
                         await SubtitleExtractor.ExtractSubtitles(unknownEpisode);
                     if (extractResult.IsLeft)
                     {
-                        return;
+                        return 2;
                     }
 
                     // process subtitles
@@ -83,6 +83,8 @@ public static class RemuxLogic
                 }
             }
         }
+
+        return 0;
     }
 
     private static async Task<List<ReferenceSubtitles>> LoadReferenceSubtitles(string targetFolder)

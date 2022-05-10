@@ -1,36 +1,43 @@
-﻿using System.CommandLine;
+﻿using System.CommandLine.Builder;
+using System.CommandLine.Hosting;
+using System.CommandLine.Parsing;
+using System.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Serilog;
+using TvRename;
 using TvRename.Logic;
 
-var imdbOption = new System.CommandLine.Option<string>("--imdb", "The imdb id of the series") { IsRequired = true };
-var titleOption = new System.CommandLine.Option<string?>("--title", "The title of the series") { IsRequired = false };
-var seasonOption = new System.CommandLine.Option<int?>("--season", "The season number") { IsRequired = false };
-var folderArgument = new Argument<string>("folder", "The folder containing the media")
-    { Arity = ArgumentArity.ExactlyOne };
+string executablePath = Process.GetCurrentProcess().MainModule.FileName;
+string executable = Path.GetFileNameWithoutExtension(executablePath);
 
-var rootCommand = new RootCommand
-{
-    imdbOption,
-    titleOption,
-    seasonOption,
-    folderArgument
-};
+IConfigurationBuilder builder = new ConfigurationBuilder();
 
-rootCommand.Description = "Tv Rename";
+string basePath = Path.GetDirectoryName(
+    "dotnet".Equals(executable, StringComparison.InvariantCultureIgnoreCase)
+        ? typeof(Program).Assembly.Location
+        : executablePath);
 
-rootCommand.SetHandler(
-    async (string imdb, string? title, int? season, string folder) =>
-    {
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
-            .WriteTo.Console()
-            .CreateLogger();
+IConfigurationRoot configuration = builder
+    .SetBasePath(basePath)
+    .AddJsonFile("TvRename.json", false, true)
+    .AddEnvironmentVariables()
+    .Build();
 
-        await RemuxLogic.Run(imdb, title, season, folder);
-    },
-    imdbOption,
-    titleOption,
-    seasonOption,
-    folderArgument);
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(configuration)
+    .Enrich.FromLogContext()
+    .CreateLogger();
 
-return await rootCommand.InvokeAsync(args);
+Parser runner = new CommandLineBuilder(new Rename())
+    .UseHost(
+        _ => new HostBuilder(),
+        builder => builder
+            .ConfigureServices(
+                (_, services) => { services.AddSingleton<RemuxLogic>(); })
+            .UseCommandHandler<Rename, Rename.Handler>()
+            .UseSerilog())
+    .UseDefaults().Build();
+
+await runner.InvokeAsync(args);
