@@ -1,0 +1,44 @@
+name: Build
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+jobs:
+  calculate_version:
+    name: Calculate version information
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the sources
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Extract Docker Tag
+        shell: bash
+        run: |
+          tag=$(git describe --tags --abbrev=0)
+          tag2="${tag:1}"
+          short=$(git rev-parse --short HEAD)
+          final="${tag2/beta/$short}"
+          echo "GIT_TAG=${final}" >> $GITHUB_ENV
+      - name: Extract Artifacts Version
+        shell: bash
+        run: |
+          tag=$(git describe --tags --abbrev=0)
+          short=$(git rev-parse --short HEAD)
+          final="${tag/beta/$short}"
+          echo "ARTIFACTS_VERSION=${final}" >> $GITHUB_ENV
+          echo "INFO_VERSION=${tag:1}" >> $GITHUB_ENV
+    outputs:
+      git_tag: ${{ env.GIT_TAG }}
+      artifacts_version: ${{ env.ARTIFACTS_VERSION }}
+      info_version: ${{ env.INFO_VERSION }}
+  build_and_upload:
+    uses: jasongdove/tvrename/.github/workflows/artifacts.yml@main
+    needs: calculate_version
+    with:
+      release_tag: develop
+      release_version: ${{ needs.calculate_version.outputs.artifacts_version }}
+      info_version: ${{ needs.calculate_version.outputs.info_version }}
+    secrets:
+      gh_token: ${{ secrets.GITHUB_TOKEN }}
