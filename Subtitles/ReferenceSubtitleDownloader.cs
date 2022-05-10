@@ -142,7 +142,6 @@ public class ReferenceSubtitleDownloader
                     catch (Exception ex)
                     {
                         Log.Error(ex, "Failed to validate subtitle {TempFile}", tempFile);
-                        return;
                         continue;
                     }
 

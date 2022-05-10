@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Serilog;
+using TvRename.Classifier;
 using TvRename.Subtitles;
 
 namespace TvRename.Logic;
@@ -40,11 +41,22 @@ public static class RemuxLogic
                 Log.Information("Detected show title {ShowTitle}", showTitle);
                 Log.Information("Detected season number {SeasonNumber}", seasonNumber);
 
-                // TODO: download expected subtitles
+                // download expected subtitles
                 var downloader = new ReferenceSubtitleDownloader(showTitle, imdb, seasonNumber, fullPath);
                 int _ = await downloader.Download();
-                // TODO: find unknown episodes
-                // TODO: identify and validate episodes
+
+                // find unknown episodes
+                foreach (string unknownEpisode in RemuxEpisodeClassifier.FindUnknownEpisodes(fullPath))
+                {
+                    // TODO: calc hash
+
+                    Log.Information("Found unknown episode {File}", Path.GetFileName(unknownEpisode));
+
+                    // TODO: probe and extract subtitles from episode
+                    // TODO: process subtitles
+                    // TODO: match episode
+                    // TODO: rename? dry run?
+                }
             }
         }
     }
