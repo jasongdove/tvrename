@@ -9,8 +9,8 @@ namespace TvRename.Subtitles;
 
 public class ReferenceSubtitleDownloader
 {
-    private readonly Regex _badMilliseconds = new(@"([\\d]{2}):([\\d]{2}):([\\d]{2}),([\\d]{2})(?!\\d)");
-    private readonly Regex _badSeconds = new(@"([\\d]{2}):([\\d]{2}):(\\d),([\\d]{2,3})");
+    private readonly Regex _badMilliseconds = new(@"([\d]{2}):([\d]{2}):([\d]{2}),([\d]{2})(?!\d)");
+    private readonly Regex _badSeconds = new(@"([\d]{2}):([\d]{2}):(\d),([\d]{2,3})");
     private readonly string _imdb;
     private readonly int _seasonNumber;
 
@@ -41,8 +41,7 @@ public class ReferenceSubtitleDownloader
             return actualEpisodeCount;
         }
 
-        // Log.Information("Actual episode count {Count}", actualEpisodeCount);
-        // TODO: search open subtitles
+        // search open subtitles
         var client = new OpenSubtitlesApiClient();
         Either<Exception, List<EpisodeSearchResults>> maybeResults = await client.Search(_imdb, _seasonNumber);
 
@@ -168,7 +167,7 @@ public class ReferenceSubtitleDownloader
             {
                 nextLine = line.Replace(
                     m1.Value,
-                    $"{m1.Groups[0].Value}:{m1.Groups[1].Value}:0{m1.Groups[2].Value},{m1.Groups[3].Value}");
+                    $"{m1.Groups[1].Value}:{m1.Groups[2].Value}:0{m1.Groups[3].Value},{m1.Groups[4].Value}");
             }
 
             Match m2 = _badMilliseconds.Match(line);
@@ -176,7 +175,7 @@ public class ReferenceSubtitleDownloader
             {
                 nextLine = line.Replace(
                     m2.Value,
-                    $"{m2.Groups[0].Value}:{m2.Groups[1].Value}:{m2.Groups[2].Value},{m2.Groups[3].Value}0");
+                    $"{m2.Groups[1].Value}:{m2.Groups[2].Value}:{m2.Groups[3].Value},{m2.Groups[4].Value}0");
             }
 
             sb.AppendLine(nextLine);

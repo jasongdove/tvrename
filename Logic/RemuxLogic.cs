@@ -1,5 +1,8 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Serilog;
+using SubtitlesParser.Classes;
+using SubtitlesParser.Classes.Parsers;
 using TvRename.Classifier;
 using TvRename.Models;
 using TvRename.Subtitles;
@@ -8,6 +11,8 @@ namespace TvRename.Logic;
 
 public static class RemuxLogic
 {
+    private static readonly Regex ReferencePattern = new(@".*s([\d]{2})e([\d]{2}).*");
+
     public static async Task Run(string imdb, string? title, int? season, string folder)
     {
         string fullPath = Path.GetFullPath(folder);
@@ -46,6 +51,9 @@ public static class RemuxLogic
                 var downloader = new ReferenceSubtitleDownloader(showTitle, imdb, seasonNumber, fullPath);
                 int _ = await downloader.Download();
 
+                // load reference subtitles
+                List<ReferenceSubtitles> referenceSubtitles = await LoadReferenceSubtitles(fullPath);
+
                 // find unknown episodes
                 foreach (string unknownEpisode in RemuxEpisodeClassifier.FindUnknownEpisodes(fullPath))
                 {
@@ -60,14 +68,56 @@ public static class RemuxLogic
                     // process subtitles
                     foreach (ExtractedSubtitles extractedSubtitles in extractResult.RightToSeq())
                     {
-                        await SubtitleProcessor.Process(extractedSubtitles);
+                        Either<Exception, List<string>> extractedLines =
+                            await SubtitleProcessor.ConvertToLines(extractedSubtitles);
+                        foreach (List<string> lines in extractedLines.RightToSeq())
+                        {
+                            Option<MatchedEpisode> maybeMatch = await SubtitleMatcher.Match(referenceSubtitles, lines);
+                            foreach (MatchedEpisode match in maybeMatch)
+                            {
+                                Log.Information("Match! {@Match}", match);
+                                // TODO: rename? dry run?
+                            }
+                        }
                     }
-
-                    // TODO: match episode
-                    // TODO: rename? dry run?
                 }
             }
         }
+    }
+
+    private static async Task<List<ReferenceSubtitles>> LoadReferenceSubtitles(string targetFolder)
+    {
+        var parser = new SrtParser();
+        var result = new List<ReferenceSubtitles>();
+
+        string referenceFolder = Path.Combine(targetFolder, ".tvrename", "reference");
+        foreach (string referenceFile in Directory.EnumerateFiles(
+                     referenceFolder,
+                     "*.srt",
+                     SearchOption.TopDirectoryOnly))
+        {
+            Match match = ReferencePattern.Match(referenceFile);
+            if (match.Success)
+            {
+                var seasonNumber = int.Parse(match.Groups[1].Value);
+                var episodeNumber = int.Parse(match.Groups[2].Value);
+                await using FileStream fs = File.OpenRead(referenceFile);
+                Option<List<SubtitleItem>> maybeParsed = parser.ParseStream(fs, Encoding.UTF8);
+                foreach (List<SubtitleItem> parsed in maybeParsed)
+                {
+                    var allLines = new List<string>();
+                    foreach (SubtitleItem item in parsed)
+                    {
+                        allLines.AddRange(item.PlaintextLines.Map(s => s.Replace("-", string.Empty)));
+                    }
+
+                    var contents = string.Join(' ', allLines);
+                    result.Add(new ReferenceSubtitles(seasonNumber, episodeNumber, contents));
+                }
+            }
+        }
+
+        return result;
     }
 
     private static Option<string> GetTitleFromFolder(Option<string> maybeTitle, string folder)

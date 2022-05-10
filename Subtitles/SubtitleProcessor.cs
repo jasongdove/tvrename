@@ -1,20 +1,20 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using CliWrap;
 using Serilog;
 using SubtitlesParser.Classes;
+using SubtitlesParser.Classes.Parsers;
 using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
 public static class SubtitleProcessor
 {
-    public static async Task Process(ExtractedSubtitles subtitles)
-    {
-        Either<Exception, List<string>> lines = await ConvertToLines(subtitles);
-        Log.Information("Convert result {Result}", lines.Match(l => l.Count.ToString(), ex => ex.ToString()));
-    }
+    private static readonly Regex BadApostrophe = new(@"(?<=\w)\s*['’](?=\w)");
+    private static readonly Regex NamesAndDashes = new(@"-[\s\w\d#]*[:\s]*");
+    private static readonly Regex Sdh = new(@"[\(\[].*[\)\]]");
 
-    private static async Task<Either<Exception, List<string>>> ConvertToLines(ExtractedSubtitles subtitles)
+    public static async Task<Either<Exception, List<string>>> ConvertToLines(ExtractedSubtitles subtitles)
     {
         Either<Exception, ExtractedSrtSubtitles> subRip = subtitles switch
         {
@@ -26,21 +26,32 @@ public static class SubtitleProcessor
 
         foreach (ExtractedSrtSubtitles srt in subRip.RightToSeq())
         {
-            var parser = new SubtitlesParser.Classes.Parsers.SrtParser();
+            var parser = new SrtParser();
             await using FileStream fs = File.OpenRead(srt.FileName);
             Option<List<SubtitleItem>> parsed = parser.ParseStream(fs, Encoding.UTF8);
-            return parsed.Map(list => list.SelectMany(l => l.PlaintextLines)).Flatten().ToList();
+            return parsed.Map(list => list.SelectMany(l => l.PlaintextLines))
+                .Flatten()
+                .Map(line => line.ToLowerInvariant())
+                .Map(line => line.Replace("||", "ll"))
+                .Map(line => BadApostrophe.Replace(line, "'"))
+                .Map(line => NamesAndDashes.Replace(line, string.Empty))
+                .Map(line => line.Trim())
+                .Filter(line => !string.IsNullOrWhiteSpace(line))
+                .Filter(line => !Sdh.Match(line).Success)
+                .ToList();
         }
 
-        return new List<string>();
+        return new Exception("Failed to convert lines");
     }
 
     private static async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedDvdSubtitles dvd)
     {
         Log.Information("Converting DVD bitmap subtitles to text");
 
+        string tessdataFolder = Path.Combine(Directory.GetCurrentDirectory(), "pgstosrt", "tessdata");
+
         CommandResult result = await Cli.Wrap("vobsub2srt")
-            .WithArguments(new[] { "-l", "en", dvd.BaseName })
+            .WithArguments(new[] { "-l", "en", dvd.BaseName, "--tesseract-data", tessdataFolder })
             .WithValidation(CommandResultValidation.None)
             .ExecuteAsync(CancellationToken.None);
 
