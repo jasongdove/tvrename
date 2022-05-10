@@ -42,7 +42,7 @@ public class SubtitleExtractor
         if (maybeStream.IsNone)
         {
             // TODO: generate subtitles
-            return new NotSupportedException("Subtitle generation is not yet supported");
+            return new NotSupportedException("Subtitle generation via speech-to-text is not yet implemented");
         }
 
         foreach (ProbeResult.FFprobeStream stream in maybeStream)

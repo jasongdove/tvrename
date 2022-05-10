@@ -11,6 +11,8 @@ namespace TvRename.Logic;
 public class RemuxLogic
 {
     private static readonly Regex ReferencePattern = new(@".*s([\d]{2})e([\d]{2}).*");
+    private static readonly Regex SeasonPattern = new(@".*([\d]{1,4}).*");
+
     private readonly ILogger<RemuxLogic> _logger;
 
     private readonly ReferenceSubtitleDownloader _referenceSubtitleDownloader;
@@ -75,8 +77,9 @@ public class RemuxLogic
                     // probe and extract subtitles from episode
                     Either<Exception, ExtractedSubtitles> extractResult =
                         await _subtitleExtractor.ExtractSubtitles(unknownEpisode);
-                    if (extractResult.IsLeft)
+                    foreach (Exception exception in extractResult.LeftToSeq())
                     {
+                        _logger.LogError(exception, "Failed to extract subtitles");
                         return 2;
                     }
 
@@ -199,7 +202,8 @@ public class RemuxLogic
         Option<DirectoryInfo> maybeSeasonFolder = Optional(new DirectoryInfo(folder));
         foreach (DirectoryInfo seasonFolder in maybeSeasonFolder)
         {
-            if (int.TryParse(seasonFolder.Name.Split(" ").Last(), out int seasonNumber))
+            Match seasonMatch = SeasonPattern.Match(seasonFolder.Name);
+            if (seasonMatch.Success && int.TryParse(seasonMatch.Groups[1].ValueSpan, out int seasonNumber))
             {
                 return seasonNumber;
             }
