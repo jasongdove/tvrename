@@ -1,4 +1,5 @@
-﻿using System.CommandLine.Builder;
+﻿using System.CommandLine;
+using System.CommandLine.Builder;
 using System.CommandLine.Hosting;
 using System.CommandLine.Parsing;
 using System.Diagnostics;
@@ -30,13 +31,19 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .CreateLogger();
 
-Parser runner = new CommandLineBuilder(new Rename())
+var root = new RootCommand();
+
+root.AddCommand(new Rename());
+root.AddCommand(new Verify());
+
+Parser runner = new CommandLineBuilder(root)
     .UseHost(
         _ => new HostBuilder(),
         builder => builder
             .ConfigureServices(
                 (_, services) => { services.AddSingleton<RemuxLogic>(); })
             .UseCommandHandler<Rename, Rename.Handler>()
+            .UseCommandHandler<Verify, Verify.Handler>()
             .UseSerilog())
     .UseDefaults().Build();
 

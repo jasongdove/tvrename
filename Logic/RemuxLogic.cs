@@ -95,7 +95,9 @@ public class RemuxLogic
                                 }
                                 else
                                 {
-                                    Log.Warning("Match failed; confidence of {Confidence} is too low", match.Confidence);
+                                    Log.Warning(
+                                        "Match failed; confidence of {Confidence} is too low",
+                                        match.Confidence);
                                 }
                             }
                         }
