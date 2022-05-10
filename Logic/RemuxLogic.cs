@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Serilog;
 using TvRename.Classifier;
+using TvRename.Models;
 using TvRename.Subtitles;
 
 namespace TvRename.Logic;
@@ -48,10 +49,20 @@ public static class RemuxLogic
                 // find unknown episodes
                 foreach (string unknownEpisode in RemuxEpisodeClassifier.FindUnknownEpisodes(fullPath))
                 {
-                    // TODO: probe and extract subtitles from episode
-                    await SubtitleExtractor.ExtractSubtitles(unknownEpisode);
+                    // probe and extract subtitles from episode
+                    Either<Exception, ExtractedSubtitles> extractResult =
+                        await SubtitleExtractor.ExtractSubtitles(unknownEpisode);
+                    if (extractResult.IsLeft)
+                    {
+                        return;
+                    }
 
-                    // TODO: process subtitles
+                    // process subtitles
+                    foreach (ExtractedSubtitles extractedSubtitles in extractResult.RightToSeq())
+                    {
+                        await SubtitleProcessor.Process(extractedSubtitles);
+                    }
+
                     // TODO: match episode
                     // TODO: rename? dry run?
                 }

@@ -3,9 +3,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using CliWrap;
 using CliWrap.Buffered;
-using CliWrap.Builders;
 using Newtonsoft.Json;
 using Serilog;
+using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
@@ -19,7 +19,7 @@ public static class SubtitleExtractor
 
     private static readonly string ExtractedFolder = Path.Combine(AppDataFolder, "cache", "extracted");
 
-    public static async Task<Either<Exception, string>> ExtractSubtitles(string fileName)
+    public static async Task<Either<Exception, ExtractedSubtitles>> ExtractSubtitles(string fileName)
     {
         string hash = OpenSubtitlesHasher.ComputeMovieHash(fileName);
         Log.Information(
@@ -27,11 +27,20 @@ public static class SubtitleExtractor
             Path.GetFileName(fileName),
             hash);
 
+        string srtFileName = GetFileName(
+            hash,
+            new ProbeResult.FFprobeStream(0, "subrip", string.Empty, new ProbeResult.FFprobeDisposition(0)));
+
+        if (File.Exists(srtFileName))
+        {
+            return new ExtractedSrtSubtitles(srtFileName);
+        }
+
         Option<ProbeResult.FFprobeStream> maybeStream = await ProbeSubtitlesStream(fileName);
         if (maybeStream.IsNone)
         {
             // TODO: generate subtitles
-            return string.Empty;
+            return new NotSupportedException("Subtitle generation is not yet supported");
         }
 
         foreach (ProbeResult.FFprobeStream stream in maybeStream)
@@ -41,20 +50,22 @@ public static class SubtitleExtractor
                 stream.index,
                 stream.codec_name);
 
-            // TODO: extract subtitles
             string targetFile = GetFileName(hash, stream);
-            if (!File.Exists(targetFile))
+            if (File.Exists(targetFile))
             {
-                Log.Information("Target file: {File}", targetFile);
+                return ExtractedSubtitles.ForCodec(stream.codec_name, targetFile);
+            }
 
-                if (!await ExtractSubtitlesStream(fileName, stream, targetFile))
-                {
-                    return string.Empty;
-                }
+            Log.Information("Extracting subtitles to: {File}", targetFile);
+
+            if (await ExtractSubtitlesStream(fileName, stream, targetFile))
+            {
+                return ExtractedSubtitles.ForCodec(stream.codec_name, targetFile);
             }
         }
 
-        return string.Empty;
+        // this shouldn't happen
+        return new Exception("Unable to probe for subtitles");
     }
 
     private static async Task<bool> ExtractSubtitlesStream(
@@ -62,22 +73,13 @@ public static class SubtitleExtractor
         ProbeResult.FFprobeStream stream,
         string outputFile)
     {
-        ArgumentsBuilder args = new ArgumentsBuilder()
-            .Add("-nostdin")
-            .Add("-hide_banner")
-            .Add("-i").Add(inputFile)
-            .Add("-map").Add($"0:{stream.index}")
-            .Add("-c:s").Add(stream.codec_name == "mov_text" ? "text" : "copy")
-            .Add(outputFile);
-
-        BufferedCommandResult result = await Cli.Wrap(OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg")
-            .WithArguments(args.Build())
+        BufferedCommandResult result = await Cli.Wrap("mkvextract")
+            .WithArguments(new[] { inputFile, "tracks", $"{stream.index}:{outputFile}" })
             .WithValidation(CommandResultValidation.None)
             .ExecuteBufferedAsync();
 
         if (result.ExitCode == 0)
         {
-            Log.Debug("Successfully extracted subtitles");
             return true;
         }
 
@@ -157,7 +159,7 @@ public static class SubtitleExtractor
         codecName switch
         {
             "subrip" or "mov_text" => "srt",
-            "dvd_subtitle" => "vob",
+            "dvd_subtitle" => "sub",
             "hdmv_pgs_subtitle" => "sup",
             _ => throw new NotSupportedException(codecName)
         };
