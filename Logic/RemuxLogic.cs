@@ -7,7 +7,7 @@ public static class RemuxLogic
     public static async Task Run(string imdb, string? title, int? season, string folder)
     {
         string fullPath = Path.GetFullPath(folder);
-        
+
         // TODO: validate parameters
         if (!Directory.Exists(fullPath))
         {
@@ -25,7 +25,7 @@ public static class RemuxLogic
 
         Console.WriteLine($"Detected show title:\t{showTitle}");
         Console.WriteLine($"Detected season number:\t{seasonNumber}");
-        
+
         // TODO: download expected subtitles
         // TODO: find unknown episodes
         // TODO: identify and validate episodes
