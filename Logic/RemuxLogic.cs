@@ -41,7 +41,7 @@ public static class RemuxLogic
                 Log.Information("Detected season number {SeasonNumber}", seasonNumber);
 
                 // TODO: download expected subtitles
-                var downloader = new ReferenceSubtitleDownloader(imdb, seasonNumber, fullPath);
+                var downloader = new ReferenceSubtitleDownloader(showTitle, imdb, seasonNumber, fullPath);
                 int _ = await downloader.Download();
                 // TODO: find unknown episodes
                 // TODO: identify and validate episodes

@@ -32,9 +32,10 @@ public class OpenSubtitlesApiClient
 
     private static List<EpisodeSearchResults> Project(List<SearchResult> searchResults) =>
         searchResults
-            .Filter(s => !s.SubFileName.Contains(".ita.", StringComparison.InvariantCultureIgnoreCase))
-            .Filter(s => s.SubFormat.Equals("srt", StringComparison.InvariantCultureIgnoreCase))
-            .GroupBy(s => int.Parse(s.SeriesEpisode))
+            .Filter(s => s.SubFileName is not null && s.SubFormat is not null && s.SeriesEpisode is not null)
+            .Filter(s => !s.SubFileName!.Contains(".ita.", StringComparison.InvariantCultureIgnoreCase))
+            .Filter(s => s.SubFormat!.Equals("srt", StringComparison.InvariantCultureIgnoreCase))
+            .GroupBy(s => int.Parse(s.SeriesEpisode!))
             .Map(g => new EpisodeSearchResults(g.Key, g.ToList()))
             .OrderBy(esr => esr.EpisodeNumber)
             .ToList();
