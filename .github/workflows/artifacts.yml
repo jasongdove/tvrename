@@ -74,7 +74,6 @@ jobs:
           tag: ${{ inputs.release_tag }}
           fail-if-no-assets: false
           assets: |
-            *${{ matrix.target }}.zip
             *${{ matrix.target }}.tar.gz
       - name: Publish
         uses: softprops/action-gh-release@v1
@@ -82,7 +81,6 @@ jobs:
           prerelease: true
           tag_name: ${{ inputs.release_tag }}
           files: |
-            ${{ env.RELEASE_NAME }}.zip
             ${{ env.RELEASE_NAME }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.gh_token }}
