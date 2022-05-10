@@ -59,7 +59,7 @@ jobs:
           echo "RELEASE_NAME=${release_name}" >> $GITHUB_ENV
 
           # Build everything
-          dotnet publish TvRename.csproj --framework net6.0 --runtime "${{ matrix.target }}" -c Release -o "$release_name" -p:InformationalVersion="${{ inputs.release_version }}-${{ matrix.target }}" -p:EnableCompressionInSingleFile=true -p:DebugType=Embedded -p:PublishSingleFile=true --self-contained true
+          dotnet publish TvRename.csproj --framework net6.0 --runtime "${{ matrix.target }}" -c Release -o "$release_name" -p:InformationalVersion="${{ inputs.release_version }}-${{ matrix.target }}" -p:PublishSingleFile=false --self-contained true
 
           # Pack files
           tar czvf "${release_name}.tar.gz" "$release_name"
