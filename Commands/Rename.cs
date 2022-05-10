@@ -2,7 +2,7 @@
 using System.CommandLine.Invocation;
 using TvRename.Logic;
 
-namespace TvRename;
+namespace TvRename.Commands;
 
 public class Rename : Command
 {

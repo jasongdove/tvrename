@@ -7,8 +7,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
-using TvRename;
+using TvRename.Commands;
 using TvRename.Logic;
+using TvRename.Subtitles;
 
 string executablePath = Process.GetCurrentProcess().MainModule.FileName;
 string executable = Path.GetFileNameWithoutExtension(executablePath);
@@ -39,9 +40,16 @@ root.AddCommand(new Verify());
 Parser runner = new CommandLineBuilder(root)
     .UseHost(
         _ => new HostBuilder(),
-        builder => builder
+        b => b
             .ConfigureServices(
-                (_, services) => { services.AddSingleton<RemuxLogic>(); })
+                (_, services) =>
+                {
+                    services.AddSingleton<RemuxLogic>();
+                    services.AddSingleton<OpenSubtitlesApiClient>();
+                    services.AddSingleton<ReferenceSubtitleDownloader>();
+                    services.AddSingleton<SubtitleExtractor>();
+                    services.AddSingleton<SubtitleProcessor>();
+                })
             .UseCommandHandler<Rename, Rename.Handler>()
             .UseCommandHandler<Verify, Verify.Handler>()
             .UseSerilog())

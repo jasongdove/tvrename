@@ -1,8 +1,7 @@
 ﻿using System.CommandLine;
 using System.CommandLine.Invocation;
-using Serilog;
 
-namespace TvRename;
+namespace TvRename.Commands;
 
 public class Verify : Command
 {
@@ -20,6 +19,10 @@ public class Verify : Command
 
     public new class Handler : ICommandHandler
     {
+        private readonly ILogger<Handler> _logger;
+
+        public Handler(ILogger<Handler> logger) => _logger = logger;
+
         public string? Imdb { get; set; }
         public string? Title { get; set; }
         public int? Season { get; set; }
@@ -28,7 +31,7 @@ public class Verify : Command
 
         public Task<int> InvokeAsync(InvocationContext context)
         {
-            Log.Fatal("verify command has not been implemented");
+            _logger.LogCritical("verify command has not been implemented");
             return Task.FromResult(1);
         }
     }
