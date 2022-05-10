@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Serilog;
+using TvRename.Subtitles;
 
 namespace TvRename.Logic;
 
@@ -20,15 +22,31 @@ public static class RemuxLogic
             return;
         }
 
-        Option<string> showTitle = GetTitleFromFolder(Optional(title), fullPath);
-        Option<int> seasonNumber = GetSeasonFromFolder(Optional(season), fullPath);
+        Option<string> maybeShowTitle = GetTitleFromFolder(Optional(title), fullPath);
+        Option<int> maybeSeasonNumber = GetSeasonFromFolder(Optional(season), fullPath);
+        if (maybeShowTitle.IsNone || maybeSeasonNumber.IsNone)
+        {
+            Log.Fatal(
+                "Unable to detect show title {ShowTitle} or season number {SeasonNumber}",
+                maybeShowTitle,
+                maybeSeasonNumber);
+            return;
+        }
 
-        Console.WriteLine($"Detected show title:\t{showTitle}");
-        Console.WriteLine($"Detected season number:\t{seasonNumber}");
+        foreach (string showTitle in maybeShowTitle)
+        {
+            foreach (int seasonNumber in maybeSeasonNumber)
+            {
+                Log.Information("Detected show title {ShowTitle}", showTitle);
+                Log.Information("Detected season number {SeasonNumber}", seasonNumber);
 
-        // TODO: download expected subtitles
-        // TODO: find unknown episodes
-        // TODO: identify and validate episodes
+                // TODO: download expected subtitles
+                var downloader = new ReferenceSubtitleDownloader(imdb, seasonNumber, fullPath);
+                int _ = await downloader.Download();
+                // TODO: find unknown episodes
+                // TODO: identify and validate episodes
+            }
+        }
     }
 
     private static Option<string> GetTitleFromFolder(Option<string> maybeTitle, string folder)
