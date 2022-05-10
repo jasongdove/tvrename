@@ -11,6 +11,12 @@ public class Rename : RootCommand
         AddOption(new System.CommandLine.Option<string>("--imdb", "The imdb id of the series") { IsRequired = true });
         AddOption(new System.CommandLine.Option<string?>("--title", "The title of the series") { IsRequired = false });
         AddOption(new System.CommandLine.Option<int?>("--season", "The season number") { IsRequired = false });
+        AddOption(
+            new System.CommandLine.Option<int?>("--confidence", "The minimum confidence required to match")
+                { IsRequired = false });
+        AddOption(
+            new System.CommandLine.Option<bool>("--dry-run", "Dry run")
+                { IsRequired = false, Arity = ArgumentArity.Zero });
         AddArgument(
             new Argument<string>("folder", "The folder containing the media") { Arity = ArgumentArity.ExactlyOne });
     }
@@ -25,8 +31,11 @@ public class Rename : RootCommand
         public string? Title { get; set; }
         public int? Season { get; set; }
         public string? Folder { get; set; }
+        public int? Confidence { get; set; }
+
+        public bool DryRun { get; set; }
 
         public async Task<int> InvokeAsync(InvocationContext context) =>
-            await _remuxLogic.Run(Imdb!, Title, Season, Folder!);
+            await _remuxLogic.Run(Imdb!, Title, Season, Folder!, Confidence, DryRun);
     }
 }

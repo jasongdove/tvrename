@@ -13,7 +13,7 @@ public class RemuxLogic
 {
     private static readonly Regex ReferencePattern = new(@".*s([\d]{2})e([\d]{2}).*");
 
-    public async Task<int> Run(string imdb, string? title, int? season, string folder)
+    public async Task<int> Run(string imdb, string? title, int? season, string folder, int? confidence, bool dryRun)
     {
         string fullPath = Path.GetFullPath(folder);
 
@@ -75,8 +75,28 @@ public class RemuxLogic
                             Option<MatchedEpisode> maybeMatch = await SubtitleMatcher.Match(referenceSubtitles, lines);
                             foreach (MatchedEpisode match in maybeMatch)
                             {
-                                Log.Information("Match! {@Match}", match);
-                                // TODO: rename? dry run?
+                                if (match.Confidence >= (confidence ?? 40))
+                                {
+                                    Log.Information(
+                                        "Matched to Season {SeasonNumber} Episode {EpisodeNumber} with confidence {Confidence}",
+                                        match.SeasonNumber,
+                                        match.EpisodeNumber,
+                                        match.Confidence);
+
+                                    if (!dryRun)
+                                    {
+                                        string newFileName =
+                                            $"{showTitle} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
+                                        string newFullPath = Path.Combine(folder, newFileName);
+
+                                        Log.Information("Renaming {Source} to {Dest}", unknownEpisode, newFullPath);
+                                        File.Move(unknownEpisode, newFullPath);
+                                    }
+                                }
+                                else
+                                {
+                                    Log.Warning("Match failed; confidence of {Confidence} is too low", match.Confidence);
+                                }
                             }
                         }
                     }
