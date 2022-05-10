@@ -1,6 +1,9 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using CliWrap;
+using CliWrap.Buffered;
+using CliWrap.Builders;
 using Newtonsoft.Json;
 using Serilog;
 
@@ -37,19 +40,49 @@ public static class SubtitleExtractor
                 "Probed subtitles stream index {Index} with codec {Codec}",
                 stream.index,
                 stream.codec_name);
-            
+
             // TODO: extract subtitles
-            List<string> targetFiles = GetFileNames(hash, stream);
-            if (targetFiles.Any(f => !File.Exists(f)))
+            string targetFile = GetFileName(hash, stream);
+            if (!File.Exists(targetFile))
             {
-                Log.Information("Target files: {Files}", targetFiles);
-                
-                string head = targetFiles.Head();
-                // TODO: extract with ffmpeg
+                Log.Information("Target file: {File}", targetFile);
+
+                if (!await ExtractSubtitlesStream(fileName, stream, targetFile))
+                {
+                    return string.Empty;
+                }
             }
         }
 
         return string.Empty;
+    }
+
+    private static async Task<bool> ExtractSubtitlesStream(
+        string inputFile,
+        ProbeResult.FFprobeStream stream,
+        string outputFile)
+    {
+        ArgumentsBuilder args = new ArgumentsBuilder()
+            .Add("-nostdin")
+            .Add("-hide_banner")
+            .Add("-i").Add(inputFile)
+            .Add("-map").Add($"0:{stream.index}")
+            .Add("-c:s").Add(stream.codec_name == "mov_text" ? "text" : "copy")
+            .Add(outputFile);
+
+        BufferedCommandResult result = await Cli.Wrap(OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg")
+            .WithArguments(args.Build())
+            .WithValidation(CommandResultValidation.None)
+            .ExecuteBufferedAsync();
+
+        if (result.ExitCode == 0)
+        {
+            Log.Debug("Successfully extracted subtitles");
+            return true;
+        }
+
+        Log.Error("Failed to extract subtitles. {Error}", result.StandardError);
+        return false;
     }
 
     private static async Task<Option<ProbeResult.FFprobeStream>> ProbeSubtitlesStream(string fileName)
@@ -99,12 +132,12 @@ public static class SubtitleExtractor
     private static int CodecPriority(string codecName) =>
         codecName switch
         {
-            "subrip" => 0,
+            "subrip" or "mov_text" => 0,
             "dvd_subtitle" => 1,
             _ => 2 // pgs
         };
 
-    private static List<string> GetFileNames(string hash, ProbeResult.FFprobeStream stream)
+    private static string GetFileName(string hash, ProbeResult.FFprobeStream stream)
     {
         string folderOne = hash[..2];
         string folderTwo = hash[2..4];
@@ -117,18 +150,18 @@ public static class SubtitleExtractor
 
         string baseFileName = Path.Combine(targetFolder, hash);
 
-        return Extensions(stream.codec_name).Map(ext => $"{baseFileName}.{ext}").ToList();
+        return $"{baseFileName}.{Extension(stream.codec_name)}";
     }
 
-    private static IEnumerable<string> Extensions(string codecName) =>
+    private static string Extension(string codecName) =>
         codecName switch
         {
-            "subrip" => new[] { "srt" },
-            "dvd_subtitle" => new[] { "sub", "idx" },
-            "hdmv_pgs_subtitle" => new[] { "sup" },
+            "subrip" or "mov_text" => "srt",
+            "dvd_subtitle" => "vob",
+            "hdmv_pgs_subtitle" => "sup",
             _ => throw new NotSupportedException(codecName)
         };
-    
+
     [SuppressMessage("ReSharper", "IdentifierTypo")]
     [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
     [SuppressMessage("ReSharper", "InconsistentNaming")]

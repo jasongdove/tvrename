@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="CliWrap" Version="3.4.4" />
         <PackageReference Include="LanguageExt.Core" Version="4.0.8-beta" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
         <PackageReference Include="Refit" Version="6.3.2" />
