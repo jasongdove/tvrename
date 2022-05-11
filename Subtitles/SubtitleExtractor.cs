@@ -4,12 +4,11 @@ using System.Text;
 using CliWrap;
 using CliWrap.Buffered;
 using Newtonsoft.Json;
-using Serilog;
 using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
-public static class SubtitleExtractor
+public class SubtitleExtractor
 {
     private static readonly string AppDataFolder = Path.Combine(
         Environment.GetFolderPath(
@@ -18,11 +17,14 @@ public static class SubtitleExtractor
         "tvrename");
 
     private static readonly string ExtractedFolder = Path.Combine(AppDataFolder, "cache", "extracted");
+    private readonly ILogger<SubtitleExtractor> _logger;
 
-    public static async Task<Either<Exception, ExtractedSubtitles>> ExtractSubtitles(string fileName)
+    public SubtitleExtractor(ILogger<SubtitleExtractor> logger) => _logger = logger;
+
+    public async Task<Either<Exception, ExtractedSubtitles>> ExtractSubtitles(string fileName)
     {
         string hash = OpenSubtitlesHasher.ComputeMovieHash(fileName);
-        Log.Information(
+        _logger.LogInformation(
             "Found unknown episode {File} with hash {Hash}",
             Path.GetFileName(fileName),
             hash);
@@ -40,12 +42,12 @@ public static class SubtitleExtractor
         if (maybeStream.IsNone)
         {
             // TODO: generate subtitles
-            return new NotSupportedException("Subtitle generation is not yet supported");
+            return new NotSupportedException("Subtitle generation via speech-to-text is not yet implemented");
         }
 
         foreach (ProbeResult.FFprobeStream stream in maybeStream)
         {
-            Log.Information(
+            _logger.LogInformation(
                 "Probed subtitles stream index {Index} with codec {Codec}",
                 stream.index,
                 stream.codec_name);
@@ -56,7 +58,7 @@ public static class SubtitleExtractor
                 return ExtractedSubtitles.ForCodec(stream.codec_name, targetFile);
             }
 
-            Log.Information("Extracting subtitles to: {File}", targetFile);
+            _logger.LogInformation("Extracting subtitles to: {File}", targetFile);
 
             if (await ExtractSubtitlesStream(fileName, stream, targetFile))
             {
@@ -68,7 +70,7 @@ public static class SubtitleExtractor
         return new Exception("Unable to probe for subtitles");
     }
 
-    private static async Task<bool> ExtractSubtitlesStream(
+    private async Task<bool> ExtractSubtitlesStream(
         string inputFile,
         ProbeResult.FFprobeStream stream,
         string outputFile)
@@ -83,11 +85,11 @@ public static class SubtitleExtractor
             return true;
         }
 
-        Log.Error("Failed to extract subtitles. {Error}", result.StandardError);
+        _logger.LogError("Failed to extract subtitles. {Error}", result.StandardError);
         return false;
     }
 
-    private static async Task<Option<ProbeResult.FFprobeStream>> ProbeSubtitlesStream(string fileName)
+    private async Task<Option<ProbeResult.FFprobeStream>> ProbeSubtitlesStream(string fileName)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -117,7 +119,7 @@ public static class SubtitleExtractor
         await probe.WaitForExitAsync();
         if (probe.ExitCode != 0)
         {
-            Log.Warning("FFprobe exited with code {Code}", probe.ExitCode);
+            _logger.LogWarning("FFprobe exited with code {Code}", probe.ExitCode);
             return None;
         }
 

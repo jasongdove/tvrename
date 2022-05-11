@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using Serilog;
 using SubtitlesParser.Classes;
 using SubtitlesParser.Classes.Parsers;
 using TvRename.Classifier;
@@ -9,9 +8,28 @@ using TvRename.Subtitles;
 
 namespace TvRename.Logic;
 
-public class RemuxLogic
+public class RenameLogic
 {
     private static readonly Regex ReferencePattern = new(@".*s([\d]{2})e([\d]{2}).*");
+    private static readonly Regex SeasonPattern = new(@".*([\d]{1,4}).*");
+
+    private readonly ILogger<RenameLogic> _logger;
+
+    private readonly ReferenceSubtitleDownloader _referenceSubtitleDownloader;
+    private readonly SubtitleExtractor _subtitleExtractor;
+    private readonly SubtitleProcessor _subtitleProcessor;
+
+    public RenameLogic(
+        ReferenceSubtitleDownloader referenceSubtitleDownloader,
+        SubtitleExtractor subtitleExtractor,
+        SubtitleProcessor subtitleProcessor,
+        ILogger<RenameLogic> logger)
+    {
+        _referenceSubtitleDownloader = referenceSubtitleDownloader;
+        _subtitleExtractor = subtitleExtractor;
+        _subtitleProcessor = subtitleProcessor;
+        _logger = logger;
+    }
 
     public async Task<int> Run(string imdb, string? title, int? season, string folder, int? confidence, bool dryRun)
     {
@@ -33,7 +51,7 @@ public class RemuxLogic
         Option<int> maybeSeasonNumber = GetSeasonFromFolder(Optional(season), fullPath);
         if (maybeShowTitle.IsNone || maybeSeasonNumber.IsNone)
         {
-            Log.Fatal(
+            _logger.LogError(
                 "Unable to detect show title {ShowTitle} or season number {SeasonNumber}",
                 maybeShowTitle,
                 maybeSeasonNumber);
@@ -44,12 +62,11 @@ public class RemuxLogic
         {
             foreach (int seasonNumber in maybeSeasonNumber)
             {
-                Log.Information("Detected show title {ShowTitle}", showTitle);
-                Log.Information("Detected season number {SeasonNumber}", seasonNumber);
+                _logger.LogInformation("Detected show title {ShowTitle}", showTitle);
+                _logger.LogInformation("Detected season number {SeasonNumber}", seasonNumber);
 
                 // download expected subtitles
-                var downloader = new ReferenceSubtitleDownloader(showTitle, imdb, seasonNumber, fullPath);
-                int _ = await downloader.Download();
+                int _ = await _referenceSubtitleDownloader.Download(showTitle, imdb, seasonNumber, fullPath);
 
                 // load reference subtitles
                 List<ReferenceSubtitles> referenceSubtitles = await LoadReferenceSubtitles(fullPath);
@@ -59,9 +76,10 @@ public class RemuxLogic
                 {
                     // probe and extract subtitles from episode
                     Either<Exception, ExtractedSubtitles> extractResult =
-                        await SubtitleExtractor.ExtractSubtitles(unknownEpisode);
-                    if (extractResult.IsLeft)
+                        await _subtitleExtractor.ExtractSubtitles(unknownEpisode);
+                    foreach (Exception exception in extractResult.LeftToSeq())
                     {
+                        _logger.LogError(exception, "Failed to extract subtitles");
                         return 2;
                     }
 
@@ -69,15 +87,14 @@ public class RemuxLogic
                     foreach (ExtractedSubtitles extractedSubtitles in extractResult.RightToSeq())
                     {
                         Either<Exception, List<string>> extractedLines =
-                            await SubtitleProcessor.ConvertToLines(extractedSubtitles);
+                            await _subtitleProcessor.ConvertToLines(extractedSubtitles);
                         foreach (List<string> lines in extractedLines.RightToSeq())
                         {
-                            Option<MatchedEpisode> maybeMatch = await SubtitleMatcher.Match(referenceSubtitles, lines);
-                            foreach (MatchedEpisode match in maybeMatch)
+                            foreach (MatchedEpisode match in await SubtitleMatcher.Match(referenceSubtitles, lines))
                             {
                                 if (match.Confidence >= (confidence ?? 40))
                                 {
-                                    Log.Information(
+                                    _logger.LogInformation(
                                         "Matched to Season {SeasonNumber} Episode {EpisodeNumber} with confidence {Confidence}",
                                         match.SeasonNumber,
                                         match.EpisodeNumber,
@@ -85,17 +102,17 @@ public class RemuxLogic
 
                                     if (!dryRun)
                                     {
-                                        string newFileName =
+                                        string source =
                                             $"{showTitle} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
-                                        string newFullPath = Path.Combine(folder, newFileName);
+                                        string dest = Path.Combine(folder, source);
 
-                                        Log.Information("Renaming {Source} to {Dest}", unknownEpisode, newFullPath);
-                                        File.Move(unknownEpisode, newFullPath);
+                                        _logger.LogInformation("Renaming {Source} to {Dest}", unknownEpisode, dest);
+                                        File.Move(unknownEpisode, dest);
                                     }
                                 }
                                 else
                                 {
-                                    Log.Warning(
+                                    _logger.LogWarning(
                                         "Match failed; confidence of {Confidence} is too low",
                                         match.Confidence);
                                 }
@@ -126,8 +143,7 @@ public class RemuxLogic
                 var seasonNumber = int.Parse(match.Groups[1].Value);
                 var episodeNumber = int.Parse(match.Groups[2].Value);
                 await using FileStream fs = File.OpenRead(referenceFile);
-                Option<List<SubtitleItem>> maybeParsed = parser.ParseStream(fs, Encoding.UTF8);
-                foreach (List<SubtitleItem> parsed in maybeParsed)
+                foreach (List<SubtitleItem> parsed in Optional(parser.ParseStream(fs, Encoding.UTF8)))
                 {
                     var allLines = new List<string>();
                     foreach (SubtitleItem item in parsed)
@@ -151,20 +167,13 @@ public class RemuxLogic
             return title;
         }
 
-        Option<DirectoryInfo> maybeSeasonFolder = Optional(new DirectoryInfo(folder));
-        foreach (DirectoryInfo seasonFolder in maybeSeasonFolder)
+        foreach (DirectoryInfo seasonFolder in Optional(new DirectoryInfo(folder)))
         {
-            Option<DirectoryInfo> maybeShowFolder = Optional(seasonFolder.Parent);
-            foreach (DirectoryInfo showFolder in maybeShowFolder)
+            foreach (DirectoryInfo showFolder in Optional(seasonFolder.Parent))
             {
                 const string PATTERN = @"^(.*?)[\s.]+?[.\(](\d{4})[.\)].*$";
                 Match match = Regex.Match(showFolder.Name, PATTERN);
-                if (match.Success)
-                {
-                    return match.Groups[1].Value;
-                }
-
-                return showFolder.Name;
+                return match.Success ? match.Groups[1].Value : showFolder.Name;
             }
         }
 
@@ -178,10 +187,10 @@ public class RemuxLogic
             return season;
         }
 
-        Option<DirectoryInfo> maybeSeasonFolder = Optional(new DirectoryInfo(folder));
-        foreach (DirectoryInfo seasonFolder in maybeSeasonFolder)
+        foreach (DirectoryInfo seasonFolder in Optional(new DirectoryInfo(folder)))
         {
-            if (int.TryParse(seasonFolder.Name.Split(" ").Last(), out int seasonNumber))
+            Match seasonMatch = SeasonPattern.Match(seasonFolder.Name);
+            if (seasonMatch.Success && int.TryParse(seasonMatch.Groups[1].ValueSpan, out int seasonNumber))
             {
                 return seasonNumber;
             }

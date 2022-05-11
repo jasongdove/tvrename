@@ -1,20 +1,22 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
 using CliWrap;
-using Serilog;
 using SubtitlesParser.Classes;
 using SubtitlesParser.Classes.Parsers;
 using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
-public static class SubtitleProcessor
+public class SubtitleProcessor
 {
     private static readonly Regex BadApostrophe = new(@"(?<=\w)\s*['’](?=\w)");
     private static readonly Regex NamesAndDashes = new(@"-[\s\w\d#]*[:\s]*");
     private static readonly Regex Sdh = new(@"[\(\[].*[\)\]]");
+    private readonly ILogger<SubtitleProcessor> _logger;
 
-    public static async Task<Either<Exception, List<string>>> ConvertToLines(ExtractedSubtitles subtitles)
+    public SubtitleProcessor(ILogger<SubtitleProcessor> logger) => _logger = logger;
+
+    public async Task<Either<Exception, List<string>>> ConvertToLines(ExtractedSubtitles subtitles)
     {
         Either<Exception, ExtractedSrtSubtitles> subRip = subtitles switch
         {
@@ -44,9 +46,9 @@ public static class SubtitleProcessor
         return new Exception("Failed to convert lines");
     }
 
-    private static async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedDvdSubtitles dvd)
+    private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedDvdSubtitles dvd)
     {
-        Log.Information("Converting DVD bitmap subtitles to text");
+        _logger.LogInformation("Converting DVD bitmap subtitles to text");
 
         string tessdataFolder = Path.Combine(Directory.GetCurrentDirectory(), "pgstosrt", "tessdata");
 
@@ -62,9 +64,9 @@ public static class SubtitleProcessor
         };
     }
 
-    private static async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedPgsSubtitles pgs)
+    private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedPgsSubtitles pgs)
     {
-        Log.Information("Converting PGS bitmap subtitles to text");
+        _logger.LogInformation("Converting PGS bitmap subtitles to text");
 
         string srtFileName = Path.ChangeExtension(pgs.FileName, "srt");
 

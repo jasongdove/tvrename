@@ -1,7 +1,6 @@
 ﻿using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
-using Serilog;
 using SubtitlesParser.Classes;
 using SubtitlesParser.Classes.Parsers;
 
@@ -11,23 +10,21 @@ public class ReferenceSubtitleDownloader
 {
     private readonly Regex _badMilliseconds = new(@"([\d]{2}):([\d]{2}):([\d]{2}),([\d]{2})(?!\d)");
     private readonly Regex _badSeconds = new(@"([\d]{2}):([\d]{2}):(\d),([\d]{2,3})");
-    private readonly string _imdb;
-    private readonly int _seasonNumber;
+    private readonly ILogger<ReferenceSubtitleDownloader> _logger;
 
-    private readonly string _showTitle;
-    private readonly string _targetFolder;
+    private readonly OpenSubtitlesApiClient _openSubtitlesApiClient;
 
-    public ReferenceSubtitleDownloader(string showTitle, string imdb, int seasonNumber, string targetFolder)
+    public ReferenceSubtitleDownloader(
+        OpenSubtitlesApiClient openSubtitlesApiClient,
+        ILogger<ReferenceSubtitleDownloader> logger)
     {
-        _showTitle = showTitle;
-        _imdb = imdb;
-        _seasonNumber = seasonNumber;
-        _targetFolder = targetFolder;
+        _openSubtitlesApiClient = openSubtitlesApiClient;
+        _logger = logger;
     }
 
-    public async Task<int> Download()
+    public async Task<int> Download(string showTitle, string imdb, int seasonNumber, string targetFolder)
     {
-        string referenceFolder = Path.Combine(_targetFolder, ".tvrename", "reference");
+        string referenceFolder = Path.Combine(targetFolder, ".tvrename", "reference");
         if (!Directory.Exists(referenceFolder))
         {
             Directory.CreateDirectory(referenceFolder);
@@ -42,31 +39,31 @@ public class ReferenceSubtitleDownloader
         }
 
         // search open subtitles
-        var client = new OpenSubtitlesApiClient();
-        Either<Exception, List<EpisodeSearchResults>> maybeResults = await client.Search(_imdb, _seasonNumber);
+        Either<Exception, List<EpisodeSearchResults>> maybeResults =
+            await _openSubtitlesApiClient.Search(imdb, seasonNumber);
 
         foreach (List<EpisodeSearchResults> results in maybeResults.RightToSeq())
         {
             if (results.Count == 0)
             {
-                Log.Fatal(
+                _logger.LogError(
                     "OpenSubtitles returned no results for show {ShowTitle} imdb {Imdb} season {SeasonNumber}",
-                    _showTitle,
-                    _imdb,
-                    _seasonNumber);
+                    showTitle,
+                    imdb,
+                    seasonNumber);
 
                 return 0;
             }
 
             int episodeCount = results.Max(e => e.EpisodeNumber) - results.Min(e => e.EpisodeNumber) + 1;
-            Log.Information(
+            _logger.LogInformation(
                 "{ShowTitle} season {SeasonNumber} has {Count} episodes",
-                _showTitle,
-                _seasonNumber,
+                showTitle,
+                seasonNumber,
                 episodeCount);
             await WriteEpisodeCount(referenceFolder, episodeCount);
 
-            await DownloadEpisodes(referenceFolder, results);
+            await DownloadEpisodes(referenceFolder, showTitle, seasonNumber, results);
         }
 
         return 0;
@@ -95,7 +92,11 @@ public class ReferenceSubtitleDownloader
         await File.WriteAllTextAsync(episodeCountFile, episodeCount.ToString());
     }
 
-    private async Task DownloadEpisodes(string referenceFolder, List<EpisodeSearchResults> results)
+    private async Task DownloadEpisodes(
+        string referenceFolder,
+        string showTitle,
+        int seasonNumber,
+        List<EpisodeSearchResults> results)
     {
         var parser = new SrtParser();
 
@@ -109,13 +110,13 @@ public class ReferenceSubtitleDownloader
 
             string targetFile = Path.Combine(
                 referenceFolder,
-                $"{_showTitle} - s{_seasonNumber:00}e{episode.EpisodeNumber:00}.srt");
+                $"{showTitle} - s{seasonNumber:00}e{episode.EpisodeNumber:00}.srt");
 
             if (!File.Exists(targetFile))
             {
                 foreach (SearchResult searchResult in sorted.Filter(s => !string.IsNullOrWhiteSpace(s.SubDownloadLink)))
                 {
-                    Log.Information("Downloading {Url}", searchResult.SubDownloadLink);
+                    _logger.LogInformation("Downloading {Url}", searchResult.SubDownloadLink);
 
                     string tempFile = Path.GetTempFileName();
                     Stream stream = await client.GetStreamAsync(new Uri(searchResult.SubDownloadLink!));
@@ -133,18 +134,18 @@ public class ReferenceSubtitleDownloader
 
                     try
                     {
-                        using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(cleaned)))
+                        await using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(cleaned)))
                         {
                             Option<List<SubtitleItem>> _ = parser.ParseStream(ms, Encoding.UTF8);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Log.Error(ex, "Failed to validate subtitle {TempFile}", tempFile);
+                        _logger.LogError(ex, "Failed to validate subtitle {TempFile}", tempFile);
                         continue;
                     }
 
-                    Log.Information("Validated as {SubtitleFile}", Path.GetFileName(targetFile));
+                    _logger.LogInformation("Validated as {SubtitleFile}", Path.GetFileName(targetFile));
                     File.Move(tempFile, targetFile);
                     break;
                 }
