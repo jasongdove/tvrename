@@ -15,12 +15,12 @@ RUN mkdir -p /app/dotnet && \
     chmod +x /tmp/dotnet-install.sh && \
     /tmp/dotnet-install.sh --version 6.0.5 --install-dir /app/dotnet --runtime dotnet
 
-RUN mkdir -p /app/autosub && git clone https://github.com/abhirooptalasila/AutoSub /app/autosub && \
+RUN mkdir -p /app/autosub && git clone --branch audio-filter https://github.com/jasongdove/AutoSub /app/autosub && \
     curl -o /tmp/get-pip.py -L https://bootstrap.pypa.io/get-pip.py && python3.7 /tmp/get-pip.py && \
     pip3 install --no-cache-dir -r /app/autosub/requirements.txt && \
     cd /app/autosub && pip3.7 install -e . && mkdir audio output && chmod 777 audio && chmod 777 output && \
-    curl -o large_vocabulary.scorer -L https://coqui.gateway.scarf.sh/english/coqui/v1.0.0-large-vocab/large_vocabulary.scorer && \
-    curl -o model.tflite -L https://coqui.gateway.scarf.sh/english/coqui/v1.0.0-large-vocab/model.tflite
+    curl -o deepspeech-0.9.3-models.pbmm -L https://github.com/mozilla/DeepSpeech/releases/download/v0.9.3/deepspeech-0.9.3-models.pbmm && \
+    curl -o deepspeech-0.9.3-models.scorer -L https://github.com/mozilla/DeepSpeech/releases/download/v0.9.3/deepspeech-0.9.3-models.scorer
 
 ENV DOTNET_ROOT=/app/dotnet
     

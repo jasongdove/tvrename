@@ -2,19 +2,31 @@
 
 namespace TvRename.Subtitles;
 
-public static class SubtitleMatcher
+public class SubtitleMatcher
 {
-    public static Option<MatchedEpisode> Match(
+    private readonly ILogger<SubtitleMatcher> _logger;
+
+    public SubtitleMatcher(ILogger<SubtitleMatcher> logger) => _logger = logger;
+
+    public Option<MatchedEpisode> Match(
         IEnumerable<ReferenceSubtitles> referenceSubtitles,
-        List<string> extractedLines) =>
-        referenceSubtitles.Map(
+        List<string> extractedLines)
+    {
+        var allMatches = referenceSubtitles.Map(
                 r =>
                 {
                     int count = extractedLines.Count(
                         l => r.Contents.Contains(l, StringComparison.InvariantCultureIgnoreCase));
-                    int confidence = Math.Clamp((int)(count * 1.0 / r.Lines * 100.0), 0, 100);
+                    double confidence = count * 1.0 / r.Lines;
                     return new MatchedEpisode(r.SeasonNumber, r.EpisodeNumber, confidence);
                 })
-            .OrderByDescending(m => m.Confidence)
-            .HeadOrNone();
+            .OrderByDescending(m => m.Confidence).ToList();
+
+        foreach (MatchedEpisode match in allMatches)
+        {
+            _logger.LogDebug("{@Match}", match);
+        }
+
+        return allMatches.HeadOrNone();
+    }
 }

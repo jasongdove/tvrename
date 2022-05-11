@@ -42,21 +42,23 @@ public class SubtitleExtractor
 
         string srtFileName = GetFileName(
             hash,
-            new ProbeResult.FFprobeStream(0, "subrip", string.Empty, new ProbeResult.FFprobeDisposition(0)));
+            new ProbeResult.FFprobeStream(0, "subrip", string.Empty, 0, new ProbeResult.FFprobeDisposition(0)));
 
         if (File.Exists(srtFileName))
         {
             return new ExtractedSrtSubtitles(srtFileName);
         }
 
-        Option<ProbeResult.FFprobeStream> maybeStream = await ProbeSubtitlesStream(fileName, cancellationToken);
-        if (maybeStream.IsNone)
+        ProbeStreamsResult streamsResult = await ProbeStreams(fileName, cancellationToken);
+        if (streamsResult.MaybeSubtitles.IsNone)
         {
             if (Directory.Exists("/app/autosub"))
             {
                 _logger.LogInformation("Generating subtitles file {File}", srtFileName);
 
-                if (await GenerateSubtitles(fileName, srtFileName, cancellationToken))
+                int audioChannels = streamsResult.MaybeAudio.Map(s => s.channels).IfNone(2);
+
+                if (await GenerateSubtitles(fileName, srtFileName, audioChannels, cancellationToken))
                 {
                     return new ExtractedSrtSubtitles(srtFileName);
                 }
@@ -68,7 +70,7 @@ public class SubtitleExtractor
             }
         }
 
-        foreach (ProbeResult.FFprobeStream stream in maybeStream)
+        foreach (ProbeResult.FFprobeStream stream in streamsResult.MaybeSubtitles)
         {
             _logger.LogInformation(
                 "Probed subtitles stream index {Index} with codec {Codec}",
@@ -93,15 +95,34 @@ public class SubtitleExtractor
         return new Exception("Unable to probe for subtitles");
     }
 
-    private async Task<bool> GenerateSubtitles(string fileName, string srtFileName, CancellationToken cancellationToken)
+    private async Task<bool> GenerateSubtitles(
+        string fileName,
+        string srtFileName,
+        int audioChannels,
+        CancellationToken cancellationToken)
     {
         string expectedOutputFile = Path.Combine(
             "/app/autosub/output",
             Path.ChangeExtension(Path.GetFileName(fileName), "srt"));
 
+        string audioFilter = audioChannels switch
+        {
+            1 => "pan=gain=1",
+            2 => "pan=mono|c0<FL+FR",
+            _ => "pan=mono|c0=FC"
+        };
+
         BufferedCommandResult result = await Cli.Wrap("python3.7")
             .WithWorkingDirectory("/app/autosub")
-            .WithArguments(new[] { "-m", "autosub.main", "--file", fileName, "--format", "srt" })
+            .WithArguments(
+                new[]
+                {
+                    "-m", "autosub.main",
+                    "--file", fileName,
+                    "--engine", "ds",
+                    "--format", "srt",
+                    "--audio-filter", audioFilter
+                })
             .WithValidation(CommandResultValidation.None)
             .ExecuteBufferedAsync(cancellationToken);
 
@@ -135,7 +156,7 @@ public class SubtitleExtractor
         return false;
     }
 
-    private async Task<Option<ProbeResult.FFprobeStream>> ProbeSubtitlesStream(
+    private async Task<ProbeStreamsResult> ProbeStreams(
         string fileName,
         CancellationToken cancellationToken)
     {
@@ -147,18 +168,29 @@ public class SubtitleExtractor
         if (result.ExitCode != 0)
         {
             _logger.LogWarning("FFprobe exited with code {Code}", result.ExitCode);
-            return None;
+            return new ProbeStreamsResult(None, None);
         }
 
         Option<ProbeResult.FFprobe> maybeProbeOutput =
             JsonConvert.DeserializeObject<ProbeResult.FFprobe>(result.StandardOutput);
-        var subtitleStreams = maybeProbeOutput
+
+        Option<ProbeResult.FFprobeStream> maybeSubtitles = maybeProbeOutput
             .Map(ff => ff.streams.Filter(s => s.codec_type == "subtitle")).Flatten()
             .OrderBy(s => s.disposition.@default == 1 ? 0 : 1)
             .ThenBy(s => CodecPriority(s.codec_name))
-            .ToList();
+            .HeadOrNone();
 
-        return subtitleStreams.HeadOrNone();
+        // only return the audio stream if there are no subtitles
+        Option<ProbeResult.FFprobeStream> maybeAudio = None;
+        if (maybeSubtitles.IsNone)
+        {
+            maybeAudio = maybeProbeOutput
+                .Map(ff => ff.streams.Filter(s => s.codec_type == "audio")).Flatten()
+                .OrderBy(s => s.disposition.@default == 1 ? 0 : 1)
+                .HeadOrNone();
+        }
+
+        return new ProbeStreamsResult(maybeAudio, maybeSubtitles);
     }
 
     private static int CodecPriority(string codecName) =>
@@ -203,6 +235,15 @@ public class SubtitleExtractor
 
         public record FFprobeDisposition(int @default);
 
-        public record FFprobeStream(int index, string codec_name, string codec_type, FFprobeDisposition disposition);
+        public record FFprobeStream(
+            int index,
+            string codec_name,
+            string codec_type,
+            int channels,
+            FFprobeDisposition disposition);
     }
+
+    private record ProbeStreamsResult(
+        Option<ProbeResult.FFprobeStream> MaybeAudio,
+        Option<ProbeResult.FFprobeStream> MaybeSubtitles);
 }
