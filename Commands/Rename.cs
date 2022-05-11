@@ -23,9 +23,9 @@ public class Rename : Command
 
     public new class Handler : ICommandHandler
     {
-        private readonly RemuxLogic _remuxLogic;
+        private readonly RenameLogic _renameLogic;
 
-        public Handler(RemuxLogic remuxLogic) => _remuxLogic = remuxLogic;
+        public Handler(RenameLogic renameLogic) => _renameLogic = renameLogic;
 
         public string? Imdb { get; set; }
         public string? Title { get; set; }
@@ -36,6 +36,6 @@ public class Rename : Command
         public bool DryRun { get; set; }
 
         public async Task<int> InvokeAsync(InvocationContext context) =>
-            await _remuxLogic.Run(Imdb!, Title, Season, Folder!, Confidence, DryRun);
+            await _renameLogic.Run(Imdb!, Title, Season, Folder!, Confidence, DryRun);
     }
 }

@@ -8,22 +8,22 @@ using TvRename.Subtitles;
 
 namespace TvRename.Logic;
 
-public class RemuxLogic
+public class RenameLogic
 {
     private static readonly Regex ReferencePattern = new(@".*s([\d]{2})e([\d]{2}).*");
     private static readonly Regex SeasonPattern = new(@".*([\d]{1,4}).*");
 
-    private readonly ILogger<RemuxLogic> _logger;
+    private readonly ILogger<RenameLogic> _logger;
 
     private readonly ReferenceSubtitleDownloader _referenceSubtitleDownloader;
     private readonly SubtitleExtractor _subtitleExtractor;
     private readonly SubtitleProcessor _subtitleProcessor;
 
-    public RemuxLogic(
+    public RenameLogic(
         ReferenceSubtitleDownloader referenceSubtitleDownloader,
         SubtitleExtractor subtitleExtractor,
         SubtitleProcessor subtitleProcessor,
-        ILogger<RemuxLogic> logger)
+        ILogger<RenameLogic> logger)
     {
         _referenceSubtitleDownloader = referenceSubtitleDownloader;
         _subtitleExtractor = subtitleExtractor;
@@ -90,8 +90,7 @@ public class RemuxLogic
                             await _subtitleProcessor.ConvertToLines(extractedSubtitles);
                         foreach (List<string> lines in extractedLines.RightToSeq())
                         {
-                            Option<MatchedEpisode> maybeMatch = await SubtitleMatcher.Match(referenceSubtitles, lines);
-                            foreach (MatchedEpisode match in maybeMatch)
+                            foreach (MatchedEpisode match in await SubtitleMatcher.Match(referenceSubtitles, lines))
                             {
                                 if (match.Confidence >= (confidence ?? 40))
                                 {
@@ -103,15 +102,12 @@ public class RemuxLogic
 
                                     if (!dryRun)
                                     {
-                                        string newFileName =
+                                        string source =
                                             $"{showTitle} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
-                                        string newFullPath = Path.Combine(folder, newFileName);
+                                        string dest = Path.Combine(folder, source);
 
-                                        _logger.LogInformation(
-                                            "Renaming {Source} to {Dest}",
-                                            unknownEpisode,
-                                            newFullPath);
-                                        File.Move(unknownEpisode, newFullPath);
+                                        _logger.LogInformation("Renaming {Source} to {Dest}", unknownEpisode, dest);
+                                        File.Move(unknownEpisode, dest);
                                     }
                                 }
                                 else
@@ -147,8 +143,7 @@ public class RemuxLogic
                 var seasonNumber = int.Parse(match.Groups[1].Value);
                 var episodeNumber = int.Parse(match.Groups[2].Value);
                 await using FileStream fs = File.OpenRead(referenceFile);
-                Option<List<SubtitleItem>> maybeParsed = parser.ParseStream(fs, Encoding.UTF8);
-                foreach (List<SubtitleItem> parsed in maybeParsed)
+                foreach (List<SubtitleItem> parsed in Optional(parser.ParseStream(fs, Encoding.UTF8)))
                 {
                     var allLines = new List<string>();
                     foreach (SubtitleItem item in parsed)
@@ -172,20 +167,13 @@ public class RemuxLogic
             return title;
         }
 
-        Option<DirectoryInfo> maybeSeasonFolder = Optional(new DirectoryInfo(folder));
-        foreach (DirectoryInfo seasonFolder in maybeSeasonFolder)
+        foreach (DirectoryInfo seasonFolder in Optional(new DirectoryInfo(folder)))
         {
-            Option<DirectoryInfo> maybeShowFolder = Optional(seasonFolder.Parent);
-            foreach (DirectoryInfo showFolder in maybeShowFolder)
+            foreach (DirectoryInfo showFolder in Optional(seasonFolder.Parent))
             {
                 const string PATTERN = @"^(.*?)[\s.]+?[.\(](\d{4})[.\)].*$";
                 Match match = Regex.Match(showFolder.Name, PATTERN);
-                if (match.Success)
-                {
-                    return match.Groups[1].Value;
-                }
-
-                return showFolder.Name;
+                return match.Success ? match.Groups[1].Value : showFolder.Name;
             }
         }
 
@@ -199,8 +187,7 @@ public class RemuxLogic
             return season;
         }
 
-        Option<DirectoryInfo> maybeSeasonFolder = Optional(new DirectoryInfo(folder));
-        foreach (DirectoryInfo seasonFolder in maybeSeasonFolder)
+        foreach (DirectoryInfo seasonFolder in Optional(new DirectoryInfo(folder)))
         {
             Match seasonMatch = SeasonPattern.Match(seasonFolder.Name);
             if (seasonMatch.Success && int.TryParse(seasonMatch.Groups[1].ValueSpan, out int seasonNumber))

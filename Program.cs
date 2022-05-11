@@ -44,7 +44,7 @@ Parser runner = new CommandLineBuilder(root)
             .ConfigureServices(
                 (_, services) =>
                 {
-                    services.AddSingleton<RemuxLogic>();
+                    services.AddSingleton<RenameLogic>();
                     services.AddSingleton<OpenSubtitlesApiClient>();
                     services.AddSingleton<ReferenceSubtitleDownloader>();
                     services.AddSingleton<SubtitleExtractor>();
