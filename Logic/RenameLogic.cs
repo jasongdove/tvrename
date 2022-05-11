@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using LanguageExt.UnsafeValueAccess;
 using SubtitlesParser.Classes;
 using SubtitlesParser.Classes.Parsers;
 using TvRename.Classifier;
@@ -31,7 +32,33 @@ public class RenameLogic
         _logger = logger;
     }
 
-    public async Task<int> Run(string imdb, string? title, int? season, string folder, int? confidence, bool dryRun)
+    public async Task<int> Run(
+        string imdb,
+        string? title,
+        int? season,
+        string folder,
+        int? confidence,
+        bool dryRun,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await RunImpl(imdb, title, season, folder, confidence, dryRun, cancellationToken);
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
+        {
+            return 0;
+        }
+    }
+
+    private async Task<int> RunImpl(
+        string imdb,
+        string? title,
+        int? season,
+        string folder,
+        int? confidence,
+        bool dryRun,
+        CancellationToken cancellationToken)
     {
         string fullPath = Path.GetFullPath(folder);
 
@@ -58,66 +85,79 @@ public class RenameLogic
             return 1;
         }
 
-        foreach (string showTitle in maybeShowTitle)
+        string showTitle = maybeShowTitle.ValueUnsafe();
+        int seasonNumber = maybeSeasonNumber.ValueUnsafe();
+
+        _logger.LogInformation("Detected show title {ShowTitle}", showTitle);
+        _logger.LogInformation("Detected season number {SeasonNumber}", seasonNumber);
+
+        // download expected subtitles
+        int _ = await _referenceSubtitleDownloader.Download(showTitle, imdb, seasonNumber, fullPath, cancellationToken);
+
+        // load reference subtitles
+        List<ReferenceSubtitles> referenceSubtitles = await LoadReferenceSubtitles(fullPath, cancellationToken);
+
+        // find unknown episodes
+        foreach (string unknownEpisode in RemuxEpisodeClassifier.FindUnknownEpisodes(fullPath))
         {
-            foreach (int seasonNumber in maybeSeasonNumber)
+            if (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Detected show title {ShowTitle}", showTitle);
-                _logger.LogInformation("Detected season number {SeasonNumber}", seasonNumber);
+                return 2;
+            }
 
-                // download expected subtitles
-                int _ = await _referenceSubtitleDownloader.Download(showTitle, imdb, seasonNumber, fullPath);
-
-                // load reference subtitles
-                List<ReferenceSubtitles> referenceSubtitles = await LoadReferenceSubtitles(fullPath);
-
-                // find unknown episodes
-                foreach (string unknownEpisode in RemuxEpisodeClassifier.FindUnknownEpisodes(fullPath))
+            // probe and extract subtitles from episode
+            Either<Exception, ExtractedSubtitles> extractResult =
+                await _subtitleExtractor.ExtractSubtitles(unknownEpisode, cancellationToken);
+            if (extractResult.IsLeft)
+            {
+                foreach (Exception exception in extractResult.LeftToSeq())
                 {
-                    // probe and extract subtitles from episode
-                    Either<Exception, ExtractedSubtitles> extractResult =
-                        await _subtitleExtractor.ExtractSubtitles(unknownEpisode);
-                    foreach (Exception exception in extractResult.LeftToSeq())
-                    {
-                        _logger.LogError(exception, "Failed to extract subtitles");
-                        return 2;
-                    }
+                    _logger.LogError(exception, "Failed to extract subtitles");
+                }
 
-                    // process subtitles
-                    foreach (ExtractedSubtitles extractedSubtitles in extractResult.RightToSeq())
+                continue;
+            }
+
+            // process subtitles
+            ExtractedSubtitles extractedSubtitles = extractResult.RightToSeq().Head();
+            Either<Exception, List<string>> extractedLines =
+                await _subtitleProcessor.ConvertToLines(extractedSubtitles);
+            foreach (List<string> lines in extractedLines.RightToSeq())
+            {
+                foreach (MatchedEpisode match in await SubtitleMatcher.Match(referenceSubtitles, lines))
+                {
+                    if (match.Confidence >= (confidence ?? 40))
                     {
-                        Either<Exception, List<string>> extractedLines =
-                            await _subtitleProcessor.ConvertToLines(extractedSubtitles);
-                        foreach (List<string> lines in extractedLines.RightToSeq())
+                        _logger.LogInformation(
+                            "Matched to Season {SeasonNumber} Episode {EpisodeNumber} with confidence {Confidence}",
+                            match.SeasonNumber,
+                            match.EpisodeNumber,
+                            match.Confidence);
+
+                        if (!dryRun)
                         {
-                            foreach (MatchedEpisode match in await SubtitleMatcher.Match(referenceSubtitles, lines))
+                            string source =
+                                $"{showTitle} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
+                            string dest = Path.Combine(folder, source);
+
+                            if (!File.Exists(dest))
                             {
-                                if (match.Confidence >= (confidence ?? 40))
-                                {
-                                    _logger.LogInformation(
-                                        "Matched to Season {SeasonNumber} Episode {EpisodeNumber} with confidence {Confidence}",
-                                        match.SeasonNumber,
-                                        match.EpisodeNumber,
-                                        match.Confidence);
-
-                                    if (!dryRun)
-                                    {
-                                        string source =
-                                            $"{showTitle} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
-                                        string dest = Path.Combine(folder, source);
-
-                                        _logger.LogInformation("Renaming {Source} to {Dest}", unknownEpisode, dest);
-                                        File.Move(unknownEpisode, dest);
-                                    }
-                                }
-                                else
-                                {
-                                    _logger.LogWarning(
-                                        "Match failed; confidence of {Confidence} is too low",
-                                        match.Confidence);
-                                }
+                                _logger.LogInformation("Renaming {Source} to {Dest}", unknownEpisode, dest);
+                                File.Move(unknownEpisode, dest);
+                            }
+                            else
+                            {
+                                _logger.LogError(
+                                    "Destination file {Dest} already exists; will not overwrite",
+                                    dest);
                             }
                         }
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Match failed; confidence of {Confidence} is too low",
+                            match.Confidence);
                     }
                 }
             }
@@ -126,7 +166,9 @@ public class RenameLogic
         return 0;
     }
 
-    private static async Task<List<ReferenceSubtitles>> LoadReferenceSubtitles(string targetFolder)
+    private static async Task<List<ReferenceSubtitles>> LoadReferenceSubtitles(
+        string targetFolder,
+        CancellationToken cancellationToken)
     {
         var parser = new SrtParser();
         var result = new List<ReferenceSubtitles>();
@@ -137,6 +179,8 @@ public class RenameLogic
                      "*.srt",
                      SearchOption.TopDirectoryOnly))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             Match match = ReferencePattern.Match(referenceFile);
             if (match.Success)
             {

@@ -8,16 +8,19 @@ public class OpenSubtitlesApiClient
 
     public OpenSubtitlesApiClient(ILogger<OpenSubtitlesApiClient> logger) => _logger = logger;
 
-    public async Task<Either<Exception, List<EpisodeSearchResults>>> Search(string imdb, int seasonNumber)
+    public async Task<Either<Exception, List<EpisodeSearchResults>>> Search(
+        string imdb,
+        int seasonNumber,
+        CancellationToken incomingCancellationToken)
     {
         try
         {
             IOpenSubtitlesApi service = RestService.For<IOpenSubtitlesApi>("https://rest.opensubtitles.org");
-            var cts = new CancellationTokenSource();
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(incomingCancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
             return await service.Search(imdb, seasonNumber, cts.Token).Map(Project);
         }
-        catch (OperationCanceledException ex)
+        catch (Exception ex) when (ex is OperationCanceledException or TaskCanceledException)
         {
             _logger.LogError(ex, "Timeout searching OpenSubtitles");
             return ex;
