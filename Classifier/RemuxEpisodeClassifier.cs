@@ -20,7 +20,8 @@ public class RemuxEpisodeClassifier
     {
         foreach (string file in Directory.EnumerateFiles(targetFolder, "*.*", SearchOption.TopDirectoryOnly)
                      .Filter(f => VideoFileExtensions.Any(f.EndsWith))
-                     .Filter(f => KnownPattern.Match(f).Success == false))
+                     .Filter(f => KnownPattern.Match(f).Success == false)
+                     .OrderBy(f => f))
         {
             yield return file;
         }

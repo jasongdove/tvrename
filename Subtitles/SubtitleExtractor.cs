@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using CliWrap;
 using CliWrap.Buffered;
@@ -31,7 +30,9 @@ public class SubtitleExtractor
         _extractedFolder = Path.Combine(cacheFolder, "extracted");
     }
 
-    public async Task<Either<Exception, ExtractedSubtitles>> ExtractSubtitles(string fileName)
+    public async Task<Either<Exception, ExtractedSubtitles>> ExtractSubtitles(
+        string fileName,
+        CancellationToken cancellationToken)
     {
         string hash = OpenSubtitlesHasher.ComputeMovieHash(fileName);
         _logger.LogInformation(
@@ -48,7 +49,7 @@ public class SubtitleExtractor
             return new ExtractedSrtSubtitles(srtFileName);
         }
 
-        Option<ProbeResult.FFprobeStream> maybeStream = await ProbeSubtitlesStream(fileName);
+        Option<ProbeResult.FFprobeStream> maybeStream = await ProbeSubtitlesStream(fileName, cancellationToken);
         if (maybeStream.IsNone)
         {
             // TODO: generate subtitles
@@ -70,7 +71,7 @@ public class SubtitleExtractor
 
             _logger.LogInformation("Extracting subtitles to: {File}", targetFile);
 
-            if (await ExtractSubtitlesStream(fileName, stream, targetFile))
+            if (await ExtractSubtitlesStream(fileName, stream, targetFile, cancellationToken))
             {
                 return ExtractedSubtitles.ForCodec(stream.codec_name, targetFile);
             }
@@ -83,12 +84,13 @@ public class SubtitleExtractor
     private async Task<bool> ExtractSubtitlesStream(
         string inputFile,
         ProbeResult.FFprobeStream stream,
-        string outputFile)
+        string outputFile,
+        CancellationToken cancellationToken)
     {
         BufferedCommandResult result = await Cli.Wrap("mkvextract")
             .WithArguments(new[] { inputFile, "tracks", $"{stream.index}:{outputFile}" })
             .WithValidation(CommandResultValidation.None)
-            .ExecuteBufferedAsync();
+            .ExecuteBufferedAsync(cancellationToken);
 
         if (result.ExitCode == 0)
         {
@@ -99,41 +101,23 @@ public class SubtitleExtractor
         return false;
     }
 
-    private async Task<Option<ProbeResult.FFprobeStream>> ProbeSubtitlesStream(string fileName)
+    private async Task<Option<ProbeResult.FFprobeStream>> ProbeSubtitlesStream(
+        string fileName,
+        CancellationToken cancellationToken)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = OperatingSystem.IsWindows() ? "ffprobe.exe" : "ffprobe",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
+        BufferedCommandResult result = await Cli.Wrap("ffprobe")
+            .WithArguments(new[] { "-v", "quiet", "-print_format", "json", "-show_streams", "-i", fileName })
+            .WithValidation(CommandResultValidation.None)
+            .ExecuteBufferedAsync(Encoding.UTF8, cancellationToken);
 
-        startInfo.ArgumentList.Add("-v");
-        startInfo.ArgumentList.Add("quiet");
-        startInfo.ArgumentList.Add("-print_format");
-        startInfo.ArgumentList.Add("json");
-        startInfo.ArgumentList.Add("-show_streams");
-        startInfo.ArgumentList.Add("-i");
-        startInfo.ArgumentList.Add(fileName);
-
-        var probe = new Process
+        if (result.ExitCode != 0)
         {
-            StartInfo = startInfo
-        };
-
-        probe.Start();
-        string output = await probe.StandardOutput.ReadToEndAsync();
-        await probe.WaitForExitAsync();
-        if (probe.ExitCode != 0)
-        {
-            _logger.LogWarning("FFprobe exited with code {Code}", probe.ExitCode);
+            _logger.LogWarning("FFprobe exited with code {Code}", result.ExitCode);
             return None;
         }
 
-        Option<ProbeResult.FFprobe> maybeProbeOutput = JsonConvert.DeserializeObject<ProbeResult.FFprobe>(output);
+        Option<ProbeResult.FFprobe> maybeProbeOutput =
+            JsonConvert.DeserializeObject<ProbeResult.FFprobe>(result.StandardOutput);
         var subtitleStreams = maybeProbeOutput
             .Map(ff => ff.streams.Filter(s => s.codec_type == "subtitle")).Flatten()
             .OrderBy(s => s.disposition.@default == 1 ? 0 : 1)

@@ -22,7 +22,12 @@ public class ReferenceSubtitleDownloader
         _logger = logger;
     }
 
-    public async Task<int> Download(string showTitle, string imdb, int seasonNumber, string targetFolder)
+    public async Task<int> Download(
+        string showTitle,
+        string imdb,
+        int seasonNumber,
+        string targetFolder,
+        CancellationToken cancellationToken)
     {
         string referenceFolder = Path.Combine(targetFolder, ".tvrename", "reference");
         if (!Directory.Exists(referenceFolder))
@@ -32,7 +37,6 @@ public class ReferenceSubtitleDownloader
 
         Option<int> maybeExpectedEpisodeCount = await GetExpectedEpisodeCount(referenceFolder);
         int actualEpisodeCount = GetActualEpisodeCount(referenceFolder);
-
         if (maybeExpectedEpisodeCount == actualEpisodeCount)
         {
             return actualEpisodeCount;
@@ -40,7 +44,7 @@ public class ReferenceSubtitleDownloader
 
         // search open subtitles
         Either<Exception, List<EpisodeSearchResults>> maybeResults =
-            await _openSubtitlesApiClient.Search(imdb, seasonNumber);
+            await _openSubtitlesApiClient.Search(imdb, seasonNumber, cancellationToken);
 
         foreach (List<EpisodeSearchResults> results in maybeResults.RightToSeq())
         {
@@ -63,7 +67,7 @@ public class ReferenceSubtitleDownloader
                 episodeCount);
             await WriteEpisodeCount(referenceFolder, episodeCount);
 
-            await DownloadEpisodes(referenceFolder, showTitle, seasonNumber, results);
+            await DownloadEpisodes(referenceFolder, showTitle, seasonNumber, results, cancellationToken);
         }
 
         return 0;
@@ -72,12 +76,11 @@ public class ReferenceSubtitleDownloader
     private static async Task<Option<int>> GetExpectedEpisodeCount(string referenceFolder)
     {
         string episodeCountFile = Path.Combine(referenceFolder, ".episode-count");
-        if (File.Exists(episodeCountFile))
+        if (File.Exists(episodeCountFile) && int.TryParse(
+                await File.ReadAllTextAsync(episodeCountFile),
+                out int episodeCount))
         {
-            if (int.TryParse(await File.ReadAllTextAsync(episodeCountFile), out int episodeCount))
-            {
-                return episodeCount;
-            }
+            return episodeCount;
         }
 
         return None;
@@ -96,7 +99,8 @@ public class ReferenceSubtitleDownloader
         string referenceFolder,
         string showTitle,
         int seasonNumber,
-        List<EpisodeSearchResults> results)
+        List<EpisodeSearchResults> results,
+        CancellationToken cancellationToken)
     {
         var parser = new SrtParser();
 
@@ -104,6 +108,11 @@ public class ReferenceSubtitleDownloader
 
         foreach (EpisodeSearchResults episode in results)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             IOrderedEnumerable<SearchResult> sorted = episode.SearchResults
                 .OrderBy(s => s.IsWebDl ? 0 : 1)
                 .ThenByDescending(s => s.Score);
@@ -116,21 +125,28 @@ public class ReferenceSubtitleDownloader
             {
                 foreach (SearchResult searchResult in sorted.Filter(s => !string.IsNullOrWhiteSpace(s.SubDownloadLink)))
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
                     _logger.LogInformation("Downloading {Url}", searchResult.SubDownloadLink);
 
                     string tempFile = Path.GetTempFileName();
-                    Stream stream = await client.GetStreamAsync(new Uri(searchResult.SubDownloadLink!));
+                    Stream stream = await client.GetStreamAsync(
+                        new Uri(searchResult.SubDownloadLink!),
+                        cancellationToken);
                     await using (var fs = new FileStream(tempFile, FileMode.OpenOrCreate))
                     {
                         await using (var gzs = new GZipStream(stream, CompressionMode.Decompress))
                         {
-                            await gzs.CopyToAsync(fs);
+                            await gzs.CopyToAsync(fs, cancellationToken);
                         }
                     }
 
-                    string[] lines = await File.ReadAllLinesAsync(tempFile);
+                    string[] lines = await File.ReadAllLinesAsync(tempFile, cancellationToken);
                     string cleaned = CleanupLines(lines);
-                    await File.WriteAllTextAsync(tempFile, cleaned);
+                    await File.WriteAllTextAsync(tempFile, cleaned, cancellationToken);
 
                     try
                     {

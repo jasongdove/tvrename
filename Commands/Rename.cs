@@ -36,6 +36,6 @@ public class Rename : Command
         public bool DryRun { get; set; }
 
         public async Task<int> InvokeAsync(InvocationContext context) =>
-            await _renameLogic.Run(Imdb!, Title, Season, Folder!, Confidence, DryRun);
+            await _renameLogic.Run(Imdb!, Title, Season, Folder!, Confidence, DryRun, context.GetCancellationToken());
     }
 }
