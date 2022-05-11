@@ -52,8 +52,20 @@ public class SubtitleExtractor
         Option<ProbeResult.FFprobeStream> maybeStream = await ProbeSubtitlesStream(fileName, cancellationToken);
         if (maybeStream.IsNone)
         {
-            // TODO: generate subtitles
-            return new NotSupportedException("Subtitle generation via speech-to-text is not yet implemented");
+            if (Directory.Exists("/app/autosub"))
+            {
+                _logger.LogInformation("Generating subtitles file {File}", srtFileName);
+
+                if (await GenerateSubtitles(fileName, srtFileName, cancellationToken))
+                {
+                    return new ExtractedSrtSubtitles(srtFileName);
+                }
+            }
+            else
+            {
+                return new NotSupportedException(
+                    "Subtitle generation via speech-to-text is not supported outside of docker");
+            }
         }
 
         foreach (ProbeResult.FFprobeStream stream in maybeStream)
@@ -79,6 +91,28 @@ public class SubtitleExtractor
 
         // this shouldn't happen
         return new Exception("Unable to probe for subtitles");
+    }
+
+    private async Task<bool> GenerateSubtitles(string fileName, string srtFileName, CancellationToken cancellationToken)
+    {
+        string expectedOutputFile = Path.Combine(
+            "/app/autosub/output",
+            Path.ChangeExtension(Path.GetFileName(fileName), "srt"));
+
+        BufferedCommandResult result = await Cli.Wrap("python3.7")
+            .WithWorkingDirectory("/app/autosub")
+            .WithArguments(new[] { "-m", "autosub.main", "--file", fileName, "--format", "srt" })
+            .WithValidation(CommandResultValidation.None)
+            .ExecuteBufferedAsync(cancellationToken);
+
+        if (result.ExitCode == 0 && File.Exists(expectedOutputFile))
+        {
+            File.Move(expectedOutputFile, srtFileName);
+            return true;
+        }
+
+        _logger.LogError("Failed to generate subtitles. {Error}", result.StandardError);
+        return false;
     }
 
     private async Task<bool> ExtractSubtitlesStream(
