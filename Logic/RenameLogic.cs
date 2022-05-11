@@ -124,7 +124,7 @@ public class RenameLogic
                 await _subtitleProcessor.ConvertToLines(extractedSubtitles);
             foreach (List<string> lines in extractedLines.RightToSeq())
             {
-                foreach (MatchedEpisode match in await SubtitleMatcher.Match(referenceSubtitles, lines))
+                foreach (MatchedEpisode match in SubtitleMatcher.Match(referenceSubtitles, lines))
                 {
                     if (match.Confidence >= (confidence ?? 40))
                     {
@@ -196,7 +196,7 @@ public class RenameLogic
                     }
 
                     var contents = string.Join(' ', allLines);
-                    result.Add(new ReferenceSubtitles(seasonNumber, episodeNumber, contents));
+                    result.Add(new ReferenceSubtitles(seasonNumber, episodeNumber, contents, allLines.Count));
                 }
             }
         }

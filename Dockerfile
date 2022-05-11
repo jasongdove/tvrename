@@ -1,10 +1,26 @@
 FROM lsiobase/ubuntu:focal AS runtime-base
-RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y ffmpeg mkvtoolnix libtesseract4
+RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y --no-install-recommends \
+    ffmpeg \
+    mkvtoolnix \
+    libtesseract4 \
+    git \
+    software-properties-common && add-apt-repository ppa:deadsnakes/ppa && apt update && apt install -y --no-install-recommends \
+    python3.7 \
+    python3.7-distutils && \
+    apt -y clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /app/dotnet && \
     curl -o /tmp/dotnet-install.sh -L https://dot.net/v1/dotnet-install.sh && \
     chmod +x /tmp/dotnet-install.sh && \
     /tmp/dotnet-install.sh --version 6.0.5 --install-dir /app/dotnet --runtime dotnet
+
+RUN mkdir -p /app/autosub && git clone https://github.com/abhirooptalasila/AutoSub /app/autosub && \
+    curl -o /tmp/get-pip.py -L https://bootstrap.pypa.io/get-pip.py && python3.7 /tmp/get-pip.py && \
+    pip3 install --no-cache-dir -r /app/autosub/requirements.txt && \
+    cd /app/autosub && pip3.7 install -e . && mkdir audio output && chmod 777 audio && chmod 777 output && \
+    curl -o large_vocabulary.scorer -L https://coqui.gateway.scarf.sh/english/coqui/v1.0.0-large-vocab/large_vocabulary.scorer && \
+    curl -o model.tflite -L https://coqui.gateway.scarf.sh/english/coqui/v1.0.0-large-vocab/model.tflite
 
 ENV DOTNET_ROOT=/app/dotnet
     
@@ -32,7 +48,7 @@ RUN mkdir -p /tmp/pgstosrt && mkdir -p /app && \
     unzip /tmp/pgstosrt/release.zip -d /tmp/pgstosrt && \
     mv /tmp/pgstosrt/net6 /app/pgstosrt && \
     mkdir -p /app/pgstosrt/tessdata && \
-    curl -o /app/pgstosrt/tessdata/eng.traineddata -L https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata
+    curl -o /app/pgstosrt/tessdata/eng.traineddata -L https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata     
 
 COPY *.sln .
 COPY *.csproj .
