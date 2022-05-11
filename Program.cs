@@ -49,6 +49,7 @@ Parser runner = new CommandLineBuilder(root)
                     services.AddSingleton<ReferenceSubtitleDownloader>();
                     services.AddSingleton<SubtitleExtractor>();
                     services.AddSingleton<SubtitleProcessor>();
+                    services.AddSingleton<SubtitleMatcher>();
                 })
             .UseCommandHandler<Rename, Rename.Handler>()
             .UseCommandHandler<Verify, Verify.Handler>()

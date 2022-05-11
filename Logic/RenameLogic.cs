@@ -18,17 +18,20 @@ public class RenameLogic
 
     private readonly ReferenceSubtitleDownloader _referenceSubtitleDownloader;
     private readonly SubtitleExtractor _subtitleExtractor;
+    private readonly SubtitleMatcher _subtitleMatcher;
     private readonly SubtitleProcessor _subtitleProcessor;
 
     public RenameLogic(
         ReferenceSubtitleDownloader referenceSubtitleDownloader,
         SubtitleExtractor subtitleExtractor,
         SubtitleProcessor subtitleProcessor,
+        SubtitleMatcher subtitleMatcher,
         ILogger<RenameLogic> logger)
     {
         _referenceSubtitleDownloader = referenceSubtitleDownloader;
         _subtitleExtractor = subtitleExtractor;
         _subtitleProcessor = subtitleProcessor;
+        _subtitleMatcher = subtitleMatcher;
         _logger = logger;
     }
 
@@ -124,15 +127,15 @@ public class RenameLogic
                 await _subtitleProcessor.ConvertToLines(extractedSubtitles);
             foreach (List<string> lines in extractedLines.RightToSeq())
             {
-                foreach (MatchedEpisode match in SubtitleMatcher.Match(referenceSubtitles, lines))
+                foreach (MatchedEpisode match in _subtitleMatcher.Match(referenceSubtitles, lines))
                 {
-                    if (match.Confidence >= (confidence ?? 40))
+                    if (match.Confidence * 100 >= (confidence ?? 40))
                     {
                         _logger.LogInformation(
                             "Matched to Season {SeasonNumber} Episode {EpisodeNumber} with confidence {Confidence}",
                             match.SeasonNumber,
                             match.EpisodeNumber,
-                            match.Confidence);
+                            Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
 
                         if (!dryRun)
                         {
@@ -157,7 +160,7 @@ public class RenameLogic
                     {
                         _logger.LogWarning(
                             "Match failed; confidence of {Confidence} is too low",
-                            match.Confidence);
+                            Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
                     }
                 }
             }
