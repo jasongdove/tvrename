@@ -57,11 +57,14 @@ public class SubtitleProcessor
             .WithValidation(CommandResultValidation.None)
             .ExecuteAsync(CancellationToken.None);
 
-        return result.ExitCode switch
+        string srtFileName = Path.ChangeExtension(dvd.FileName, "srt");
+
+        if (result.ExitCode == 0 && File.Exists(srtFileName))
         {
-            0 => new ExtractedSrtSubtitles(Path.ChangeExtension(dvd.FileName, "srt")),
-            _ => new Exception($"VobSub2SRT exited with code {result.ExitCode}")
-        };
+            return new ExtractedSrtSubtitles(srtFileName);
+        }
+
+        return new Exception($"VobSub2SRT failed to convert; exit code {result.ExitCode}");
     }
 
     private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedPgsSubtitles pgs)
@@ -75,10 +78,11 @@ public class SubtitleProcessor
             .WithValidation(CommandResultValidation.None)
             .ExecuteAsync(CancellationToken.None);
 
-        return result.ExitCode switch
+        if (result.ExitCode == 0 && File.Exists(srtFileName))
         {
-            0 => new ExtractedSrtSubtitles(Path.ChangeExtension(pgs.FileName, "srt")),
-            _ => new Exception($"PgsToSrt exited with code {result.ExitCode}")
-        };
+            return new ExtractedSrtSubtitles(Path.ChangeExtension(pgs.FileName, "srt"));
+        }
+
+        return new Exception($"PgsToSrt failed to convert; exit code {result.ExitCode}");
     }
 }

@@ -10,16 +10,26 @@ namespace TvRename.Subtitles;
 
 public class SubtitleExtractor
 {
-    private static readonly string AppDataFolder = Path.Combine(
-        Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData,
-            Environment.SpecialFolderOption.Create),
-        "tvrename");
+    private readonly string _extractedFolder;
 
-    private static readonly string ExtractedFolder = Path.Combine(AppDataFolder, "cache", "extracted");
     private readonly ILogger<SubtitleExtractor> _logger;
 
-    public SubtitleExtractor(ILogger<SubtitleExtractor> logger) => _logger = logger;
+    public SubtitleExtractor(ILogger<SubtitleExtractor> logger)
+    {
+        _logger = logger;
+
+        Option<string> maybeCacheFolder = Environment.GetEnvironmentVariable("CACHE_FOLDER");
+        string cacheFolder = maybeCacheFolder.Match(
+            cacheFolder => cacheFolder,
+            () => Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData,
+                    Environment.SpecialFolderOption.Create),
+                "tvrename",
+                "cache"));
+
+        _extractedFolder = Path.Combine(cacheFolder, "extracted");
+    }
 
     public async Task<Either<Exception, ExtractedSubtitles>> ExtractSubtitles(string fileName)
     {
@@ -141,12 +151,12 @@ public class SubtitleExtractor
             _ => 2 // pgs
         };
 
-    private static string GetFileName(string hash, ProbeResult.FFprobeStream stream)
+    private string GetFileName(string hash, ProbeResult.FFprobeStream stream)
     {
         string folderOne = hash[..2];
         string folderTwo = hash[2..4];
 
-        string targetFolder = Path.Combine(ExtractedFolder, folderOne, folderTwo);
+        string targetFolder = Path.Combine(_extractedFolder, folderOne, folderTwo);
         if (!Directory.Exists(targetFolder))
         {
             Directory.CreateDirectory(targetFolder);
