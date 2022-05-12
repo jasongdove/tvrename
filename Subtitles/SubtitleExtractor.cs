@@ -35,10 +35,7 @@ public class SubtitleExtractor
         CancellationToken cancellationToken)
     {
         string hash = OpenSubtitlesHasher.ComputeMovieHash(fileName);
-        _logger.LogInformation(
-            "Found unknown episode {File} with hash {Hash}",
-            Path.GetFileName(fileName),
-            hash);
+        _logger.LogInformation("Found episode {File} with hash {Hash}", Path.GetFileName(fileName), hash);
 
         string srtFileName = GetFileName(
             hash,

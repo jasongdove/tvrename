@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using SubtitlesParser.Classes;
 using SubtitlesParser.Classes.Parsers;
+using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
@@ -22,14 +23,9 @@ public class ReferenceSubtitleDownloader
         _logger = logger;
     }
 
-    public async Task<int> Download(
-        string showTitle,
-        string imdb,
-        int seasonNumber,
-        string targetFolder,
-        CancellationToken cancellationToken)
+    public async Task<int> Download(ValidatedParameters parameters, CancellationToken cancellationToken)
     {
-        string referenceFolder = Path.Combine(targetFolder, ".tvrename", "reference");
+        string referenceFolder = Path.Combine(parameters.Folder, ".tvrename", "reference");
         if (!Directory.Exists(referenceFolder))
         {
             Directory.CreateDirectory(referenceFolder);
@@ -44,7 +40,7 @@ public class ReferenceSubtitleDownloader
 
         // search open subtitles
         Either<Exception, List<EpisodeSearchResults>> maybeResults =
-            await _openSubtitlesApiClient.Search(imdb, seasonNumber, cancellationToken);
+            await _openSubtitlesApiClient.Search(parameters.Imdb, parameters.Season, cancellationToken);
 
         foreach (List<EpisodeSearchResults> results in maybeResults.RightToSeq())
         {
@@ -52,9 +48,9 @@ public class ReferenceSubtitleDownloader
             {
                 _logger.LogError(
                     "OpenSubtitles returned no results for show {ShowTitle} imdb {Imdb} season {SeasonNumber}",
-                    showTitle,
-                    imdb,
-                    seasonNumber);
+                    parameters.Title,
+                    parameters.Imdb,
+                    parameters.Season);
 
                 return 0;
             }
@@ -62,12 +58,14 @@ public class ReferenceSubtitleDownloader
             int episodeCount = results.Max(e => e.EpisodeNumber) - results.Min(e => e.EpisodeNumber) + 1;
             _logger.LogInformation(
                 "{ShowTitle} season {SeasonNumber} has {Count} episodes",
-                showTitle,
-                seasonNumber,
+                parameters.Title,
+                parameters.Season,
                 episodeCount);
             await WriteEpisodeCount(referenceFolder, episodeCount);
 
-            await DownloadEpisodes(referenceFolder, showTitle, seasonNumber, results, cancellationToken);
+            await DownloadEpisodes(referenceFolder, parameters.Title, parameters.Season, results, cancellationToken);
+
+            return episodeCount;
         }
 
         return 0;
