@@ -116,7 +116,6 @@ public class SubtitleExtractor
                 {
                     "-m", "autosub.main",
                     "--file", fileName,
-                    "--engine", "ds",
                     "--format", "srt",
                     "--audio-filter", audioFilter
                 })

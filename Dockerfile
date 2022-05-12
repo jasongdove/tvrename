@@ -18,12 +18,13 @@ RUN mkdir -p /app/dotnet && \
 RUN mkdir -p /app/autosub && git clone --branch audio-filter https://github.com/jasongdove/AutoSub /app/autosub && \
     curl -o /tmp/get-pip.py -L https://bootstrap.pypa.io/get-pip.py && python3.7 /tmp/get-pip.py && \
     pip3 install --no-cache-dir -r /app/autosub/requirements.txt && \
-    cd /app/autosub && pip3.7 install -e . && mkdir audio output && chmod 777 audio && chmod 777 output && \
-    curl -o deepspeech-0.9.3-models.pbmm -L https://github.com/mozilla/DeepSpeech/releases/download/v0.9.3/deepspeech-0.9.3-models.pbmm && \
-    curl -o deepspeech-0.9.3-models.scorer -L https://github.com/mozilla/DeepSpeech/releases/download/v0.9.3/deepspeech-0.9.3-models.scorer
+    cd /app/autosub && pip3.7 install -e . && mkdir audio output && chmod 777 audio && chmod 777 output
+
+COPY models/model.tflite /app/autosub/model.tflite
+COPY models/large_vocabulary.scorer /app/autosub/large_vocabulary.scorer
 
 ENV DOTNET_ROOT=/app/dotnet
-    
+
 FROM mcr.microsoft.com/dotnet/sdk:6.0-focal as build
 RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y \
     libtiff5-dev \
