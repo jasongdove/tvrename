@@ -1,25 +1,23 @@
-using TvRename.Classifier;
+﻿using TvRename.Classifier;
 using TvRename.Models;
 using TvRename.Subtitles;
 
 namespace TvRename.Logic;
 
-public class RenameLogic : BaseLogic
+public class VerifyLogic : BaseLogic
 {
-    private readonly ILogger<RenameLogic> _logger;
-
+    private readonly ILogger<VerifyLogic> _logger;
     private readonly ReferenceSubtitleDownloader _referenceSubtitleDownloader;
     private readonly SubtitleExtractor _subtitleExtractor;
     private readonly SubtitleMatcher _subtitleMatcher;
     private readonly SubtitleProcessor _subtitleProcessor;
 
-    public RenameLogic(
+    public VerifyLogic(
         ReferenceSubtitleDownloader referenceSubtitleDownloader,
         SubtitleExtractor subtitleExtractor,
         SubtitleProcessor subtitleProcessor,
         SubtitleMatcher subtitleMatcher,
-        ILogger<RenameLogic> logger)
-        : base(logger)
+        ILogger<VerifyLogic> logger) : base(logger)
     {
         _referenceSubtitleDownloader = referenceSubtitleDownloader;
         _subtitleExtractor = subtitleExtractor;
@@ -34,12 +32,11 @@ public class RenameLogic : BaseLogic
         int? season,
         string folder,
         int? confidence,
-        bool dryRun,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await ValidateAndRun(imdb, title, season, folder, confidence, dryRun, cancellationToken);
+            return await ValidateAndRun(imdb, title, season, folder, confidence, false, cancellationToken);
         }
         catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
         {
@@ -50,14 +47,36 @@ public class RenameLogic : BaseLogic
     protected override async Task<int> Run(ValidatedParameters parameters, CancellationToken cancellationToken)
     {
         // download expected subtitles
-        int _ = await _referenceSubtitleDownloader.Download(parameters, cancellationToken);
+        int downloadCount = await _referenceSubtitleDownloader.Download(parameters, cancellationToken);
 
         // load reference subtitles
         List<ReferenceSubtitles> referenceSubtitles =
             await LoadReferenceSubtitles(parameters.Folder, cancellationToken);
 
-        // find unknown episodes
-        foreach (string unknownEpisode in RemuxEpisodeClassifier.FindUnknownEpisodes(parameters.Folder))
+        if (downloadCount != referenceSubtitles.Count)
+        {
+            _logger.LogError(
+                "Available subtitles count {DownloadCount} doesn't match reference subtitles count {ReferenceCount}",
+                downloadCount,
+                referenceSubtitles.Count);
+
+            return 1;
+        }
+
+        List<string> knownEpisodes = RemuxEpisodeClassifier.FindKnownEpisodes(parameters.Folder);
+        if (knownEpisodes.Count != referenceSubtitles.Count)
+        {
+            _logger.LogError(
+                "Known episodes count {KnownCount} doesn't match reference subtitles count {ReferenceCount}",
+                knownEpisodes.Count,
+                referenceSubtitles.Count);
+
+            return 1;
+        }
+
+        var success = 0;
+
+        foreach (string knownEpisode in knownEpisodes)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -66,7 +85,7 @@ public class RenameLogic : BaseLogic
 
             // probe and extract subtitles from episode
             Either<Exception, ExtractedSubtitles> extractResult =
-                await _subtitleExtractor.ExtractSubtitles(unknownEpisode, cancellationToken);
+                await _subtitleExtractor.ExtractSubtitles(knownEpisode, cancellationToken);
             if (extractResult.IsLeft)
             {
                 foreach (Exception exception in extractResult.LeftToSeq())
@@ -85,42 +104,45 @@ public class RenameLogic : BaseLogic
             {
                 foreach (MatchedEpisode match in _subtitleMatcher.Match(referenceSubtitles, lines))
                 {
+                    string nameSegment = $"s{match.SeasonNumber:00}e{match.EpisodeNumber:00}";
+
                     if (match.Confidence * 100 >= parameters.Confidence)
                     {
-                        _logger.LogInformation(
-                            "Matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
-                            match.SeasonNumber,
-                            match.EpisodeNumber,
-                            Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
-
-                        if (!parameters.DryRun)
+                        if (knownEpisode.Contains(nameSegment))
                         {
-                            string source =
-                                $"{parameters.Title} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
-                            string dest = Path.Combine(parameters.Folder, source);
-
-                            if (!File.Exists(dest))
-                            {
-                                _logger.LogInformation("Renaming {Source} to {Dest}", unknownEpisode, dest);
-                                File.Move(unknownEpisode, dest);
-                            }
-                            else
-                            {
-                                _logger.LogError(
-                                    "Destination file {Dest} already exists; will not overwrite",
-                                    dest);
-                            }
+                            _logger.LogInformation(
+                                "Verified OK with confidence {Confidence}",
+                                Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
+                            success++;
+                        }
+                        else
+                        {
+                            _logger.LogWarning(
+                                "Verify failed; matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
+                                match.SeasonNumber,
+                                match.EpisodeNumber,
+                                Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
                         }
                     }
                     else
                     {
                         _logger.LogWarning(
-                            "Match failed; confidence of {Confidence} is too low",
+                            "Verify failed; confidence of {Confidence} is too low",
                             Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
                     }
                 }
             }
         }
+
+        if (success != knownEpisodes.Count)
+        {
+            _logger.LogError("Some episodes failed to verify");
+            return 1;
+        }
+
+        _logger.LogInformation("All episodes successfully verified");
+        string verifiedFileName = Path.Combine(parameters.Folder, ".tvrename-verified");
+        await File.WriteAllTextAsync(verifiedFileName, "OK", cancellationToken);
 
         return 0;
     }

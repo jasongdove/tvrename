@@ -1,5 +1,6 @@
 ﻿using System.CommandLine;
 using System.CommandLine.Invocation;
+using TvRename.Logic;
 
 namespace TvRename.Commands;
 
@@ -19,9 +20,9 @@ public class Verify : Command
 
     public new class Handler : ICommandHandler
     {
-        private readonly ILogger<Handler> _logger;
+        private readonly VerifyLogic _verifyLogic;
 
-        public Handler(ILogger<Handler> logger) => _logger = logger;
+        public Handler(VerifyLogic verifyLogic) => _verifyLogic = verifyLogic;
 
         public string? Imdb { get; set; }
         public string? Title { get; set; }
@@ -29,10 +30,7 @@ public class Verify : Command
         public string? Folder { get; set; }
         public int? Confidence { get; set; }
 
-        public Task<int> InvokeAsync(InvocationContext context)
-        {
-            _logger.LogCritical("verify command has not been implemented");
-            return Task.FromResult(1);
-        }
+        public async Task<int> InvokeAsync(InvocationContext context) =>
+            await _verifyLogic.Run(Imdb!, Title, Season, Folder!, Confidence, context.GetCancellationToken());
     }
 }

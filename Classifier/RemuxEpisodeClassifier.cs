@@ -2,7 +2,7 @@
 
 namespace TvRename.Classifier;
 
-public class RemuxEpisodeClassifier
+public static class RemuxEpisodeClassifier
 {
     private static readonly List<string> VideoFileExtensions = new()
     {
@@ -15,6 +15,13 @@ public class RemuxEpisodeClassifier
     };
 
     private static readonly Regex KnownPattern = new(@".*s([0-9]{2})e([0-9]{2})\..*");
+
+    public static List<string> FindKnownEpisodes(string targetFolder) =>
+        Directory.EnumerateFiles(targetFolder, "*.*", SearchOption.TopDirectoryOnly)
+            .Filter(f => VideoFileExtensions.Any(f.EndsWith))
+            .Filter(f => KnownPattern.Match(f).Success)
+            .OrderBy(f => f)
+            .ToList();
 
     public static IEnumerable<string> FindUnknownEpisodes(string targetFolder)
     {
