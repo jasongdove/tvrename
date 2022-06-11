@@ -104,9 +104,9 @@ public class SubtitleExtractor
 
         string audioFilter = audioChannels switch
         {
-            1 => "pan=gain=1",
-            2 => "pan=mono|c0<FL+FR",
-            _ => "pan=mono|c0=FC"
+            1 => "pan=gain=1,speechnorm",
+            2 => "pan=mono|c0<FL+FR,speechnorm",
+            _ => "pan=mono|c0=FC,speechnorm"
         };
 
         BufferedCommandResult result = await Cli.Wrap("python3.7")
@@ -117,6 +117,7 @@ public class SubtitleExtractor
                     "-m", "autosub.main",
                     "--file", fileName,
                     "--format", "srt",
+                    "--split-duration", "1",
                     "--audio-filter", audioFilter
                 })
             .WithValidation(CommandResultValidation.None)

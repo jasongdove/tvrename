@@ -1,4 +1,4 @@
-FROM lsiobase/ubuntu:focal AS runtime-base
+FROM lsiobase/ubuntu:jammy AS runtime-base
 RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y --no-install-recommends \
     ffmpeg \
     mkvtoolnix \
@@ -25,7 +25,7 @@ COPY models/large_vocabulary.scorer /app/autosub/large_vocabulary.scorer
 
 ENV DOTNET_ROOT=/app/dotnet
 
-FROM mcr.microsoft.com/dotnet/sdk:6.0-focal as build
+FROM mcr.microsoft.com/dotnet/sdk:6.0-jammy as build
 RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y \
     libtiff5-dev \
     libtesseract-dev \
