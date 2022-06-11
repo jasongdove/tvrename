@@ -9,7 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="CliWrap" Version="3.4.4" />
-        <PackageReference Include="LanguageExt.Core" Version="4.1.1" />
+        <PackageReference Include="LanguageExt.Core" Version="4.2.2" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
         <PackageReference Include="Refit" Version="6.3.2" />
@@ -17,8 +17,8 @@
         <PackageReference Include="Serilog.Settings.Configuration" Version="3.3.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
         <PackageReference Include="SubtitlesParser" Version="1.5.1" />
-        <PackageReference Include="System.CommandLine" Version="2.0.0-beta3.22114.1" />
-        <PackageReference Include="System.CommandLine.Hosting" Version="0.4.0-alpha.22114.1" />
+        <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+        <PackageReference Include="System.CommandLine.Hosting" Version="0.4.0-alpha.22272.1" />
     </ItemGroup>
 
     <ItemGroup>
