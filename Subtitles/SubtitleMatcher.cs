@@ -15,8 +15,7 @@ public class SubtitleMatcher
         var allMatches = referenceSubtitles.Map(
                 r =>
                 {
-                    int count = extractedLines.Count(
-                        l => r.Contents.Contains(l, StringComparison.InvariantCultureIgnoreCase));
+                    int count = extractedLines.Count(l => r.Contents.Contains(l));
                     double confidence = count * 1.0 / r.Lines;
                     return new MatchedEpisode(r.SeasonNumber, r.EpisodeNumber, confidence);
                 })

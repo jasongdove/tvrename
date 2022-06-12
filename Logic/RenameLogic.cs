@@ -64,6 +64,12 @@ public class RenameLogic : BaseLogic
                 return 2;
             }
 
+            // ignore files that no longer exist
+            if (!File.Exists(unknownEpisode))
+            {
+                continue;
+            }
+
             // probe and extract subtitles from episode
             Either<Exception, ExtractedSubtitles> extractResult =
                 await _subtitleExtractor.ExtractSubtitles(unknownEpisode, cancellationToken);
