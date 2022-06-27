@@ -71,7 +71,7 @@ public class RenameLogic : BaseLogic
             }
 
             // probe and extract subtitles from episode
-            Either<Exception, ExtractedSubtitles> extractResult =
+            Either<Exception, List<ExtractedSubtitles>> extractResult =
                 await _subtitleExtractor.ExtractSubtitles(unknownEpisode, cancellationToken);
             if (extractResult.IsLeft)
             {
@@ -84,50 +84,64 @@ public class RenameLogic : BaseLogic
             }
 
             // process subtitles
-            ExtractedSubtitles extractedSubtitles = extractResult.RightToSeq().Head();
-            Either<Exception, List<string>> extractedLines =
-                await _subtitleProcessor.ConvertToLines(extractedSubtitles);
-            foreach (List<string> lines in extractedLines.RightToSeq())
+            List<ExtractedSubtitles> extractedSubtitles = extractResult.RightToSeq().Head();
+            IEnumerable<Task<Option<MatchedEpisode>>>? matchTasks =
+                extractedSubtitles.Map(es => Match(referenceSubtitles, es));
+            Option<MatchedEpisode>[] matches = await Task.WhenAll(matchTasks);
+            Option<MatchedEpisode> maybeBestMatch = matches.Somes()
+                .OrderByDescending(m => m.Confidence)
+                .HeadOrNone();
+            foreach (MatchedEpisode match in maybeBestMatch)
             {
-                foreach (MatchedEpisode match in _subtitleMatcher.Match(referenceSubtitles, lines))
+                if (match.Confidence * 100 >= parameters.Confidence)
                 {
-                    if (match.Confidence * 100 >= parameters.Confidence)
+                    _logger.LogInformation(
+                        "Matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
+                        match.SeasonNumber,
+                        match.EpisodeNumber,
+                        Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
+
+                    if (!parameters.DryRun)
                     {
-                        _logger.LogInformation(
-                            "Matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
-                            match.SeasonNumber,
-                            match.EpisodeNumber,
-                            Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
+                        string source =
+                            $"{parameters.Title} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
+                        string dest = Path.Combine(parameters.Folder, source);
 
-                        if (!parameters.DryRun)
+                        if (!File.Exists(dest))
                         {
-                            string source =
-                                $"{parameters.Title} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
-                            string dest = Path.Combine(parameters.Folder, source);
-
-                            if (!File.Exists(dest))
-                            {
-                                _logger.LogInformation("Renaming {Source} to {Dest}", unknownEpisode, dest);
-                                File.Move(unknownEpisode, dest);
-                            }
-                            else
-                            {
-                                _logger.LogError(
-                                    "Destination file {Dest} already exists; will not overwrite",
-                                    dest);
-                            }
+                            _logger.LogInformation("Renaming {Source} to {Dest}", unknownEpisode, dest);
+                            File.Move(unknownEpisode, dest);
+                        }
+                        else
+                        {
+                            _logger.LogError(
+                                "Destination file {Dest} already exists; will not overwrite",
+                                dest);
                         }
                     }
-                    else
-                    {
-                        _logger.LogWarning(
-                            "Match failed; confidence of {Confidence} is too low",
-                            Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
-                    }
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Match failed; confidence of {Confidence} is too low",
+                        Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
                 }
             }
         }
 
         return 0;
+    }
+
+    private async Task<Option<MatchedEpisode>> Match(
+        List<ReferenceSubtitles> referenceSubtitles,
+        ExtractedSubtitles extractedSubtitles)
+    {
+        Either<Exception, List<string>> extractedLines = await _subtitleProcessor.ConvertToLines(extractedSubtitles);
+        foreach (List<string> lines in extractedLines.RightToSeq())
+        {
+            return _subtitleMatcher.Match(referenceSubtitles, lines);
+        }
+
+        return None;
     }
 }

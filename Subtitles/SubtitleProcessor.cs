@@ -61,7 +61,7 @@ public class SubtitleProcessor
 
         if (result.ExitCode == 0 && File.Exists(srtFileName))
         {
-            return new ExtractedSrtSubtitles(srtFileName);
+            return new ExtractedSrtSubtitles(srtFileName, dvd.StreamNumber);
         }
 
         return new Exception($"VobSub2SRT failed to convert; exit code {result.ExitCode}");
@@ -80,7 +80,7 @@ public class SubtitleProcessor
 
         if (result.ExitCode == 0 && File.Exists(srtFileName))
         {
-            return new ExtractedSrtSubtitles(Path.ChangeExtension(pgs.FileName, "srt"));
+            return new ExtractedSrtSubtitles(Path.ChangeExtension(pgs.FileName, "srt"), pgs.StreamNumber);
         }
 
         return new Exception($"PgsToSrt failed to convert; exit code {result.ExitCode}");

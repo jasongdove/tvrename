@@ -84,7 +84,7 @@ public class VerifyLogic : BaseLogic
             }
 
             // probe and extract subtitles from episode
-            Either<Exception, ExtractedSubtitles> extractResult =
+            Either<Exception, List<ExtractedSubtitles>> extractResult =
                 await _subtitleExtractor.ExtractSubtitles(knownEpisode, cancellationToken);
             if (extractResult.IsLeft)
             {
@@ -97,39 +97,40 @@ public class VerifyLogic : BaseLogic
             }
 
             // process subtitles
-            ExtractedSubtitles extractedSubtitles = extractResult.RightToSeq().Head();
-            Either<Exception, List<string>> extractedLines =
-                await _subtitleProcessor.ConvertToLines(extractedSubtitles);
-            foreach (List<string> lines in extractedLines.RightToSeq())
+            List<ExtractedSubtitles> extractedSubtitles = extractResult.RightToSeq().Head();
+            IEnumerable<Task<Option<MatchedEpisode>>>? matchTasks =
+                extractedSubtitles.Map(es => Match(referenceSubtitles, es));
+            Option<MatchedEpisode>[] matches = await Task.WhenAll(matchTasks);
+            Option<MatchedEpisode> maybeBestMatch = matches.Somes()
+                .OrderByDescending(m => m.Confidence)
+                .HeadOrNone();
+            foreach (MatchedEpisode match in maybeBestMatch)
             {
-                foreach (MatchedEpisode match in _subtitleMatcher.Match(referenceSubtitles, lines))
-                {
-                    string nameSegment = $"s{match.SeasonNumber:00}e{match.EpisodeNumber:00}";
+                string nameSegment = $"s{match.SeasonNumber:00}e{match.EpisodeNumber:00}";
 
-                    if (match.Confidence * 100 >= parameters.Confidence)
+                if (match.Confidence * 100 >= parameters.Confidence)
+                {
+                    if (knownEpisode.Contains(nameSegment))
                     {
-                        if (knownEpisode.Contains(nameSegment))
-                        {
-                            _logger.LogInformation(
-                                "Verified OK with confidence {Confidence}",
-                                Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
-                            success++;
-                        }
-                        else
-                        {
-                            _logger.LogWarning(
-                                "Verify failed; matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
-                                match.SeasonNumber,
-                                match.EpisodeNumber,
-                                Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
-                        }
+                        _logger.LogInformation(
+                            "Verified OK with confidence {Confidence}",
+                            Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
+                        success++;
                     }
                     else
                     {
                         _logger.LogWarning(
-                            "Verify failed; confidence of {Confidence} is too low",
+                            "Verify failed; matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
+                            match.SeasonNumber,
+                            match.EpisodeNumber,
                             Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
                     }
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Verify failed; confidence of {Confidence} is too low",
+                        Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
                 }
             }
         }
@@ -145,5 +146,18 @@ public class VerifyLogic : BaseLogic
         await File.WriteAllTextAsync(verifiedFileName, "OK", cancellationToken);
 
         return 0;
+    }
+
+    private async Task<Option<MatchedEpisode>> Match(
+        List<ReferenceSubtitles> referenceSubtitles,
+        ExtractedSubtitles extractedSubtitles)
+    {
+        Either<Exception, List<string>> extractedLines = await _subtitleProcessor.ConvertToLines(extractedSubtitles);
+        foreach (List<string> lines in extractedLines.RightToSeq())
+        {
+            return _subtitleMatcher.Match(referenceSubtitles, lines);
+        }
+
+        return None;
     }
 }
