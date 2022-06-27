@@ -31,6 +31,7 @@ public class Verify : Command
         public int? Confidence { get; set; }
 
         public int Invoke(InvocationContext context) => throw new NotImplementedException();
+
         public async Task<int> InvokeAsync(InvocationContext context) =>
             await _verifyLogic.Run(Imdb!, Title, Season, Folder!, Confidence, context.GetCancellationToken());
     }

@@ -97,7 +97,8 @@ public abstract class BaseLogic
                     var allLines = new List<string>();
                     foreach (SubtitleItem item in parsed)
                     {
-                        allLines.AddRange(item.PlaintextLines.Map(s => s.Replace("-", string.Empty).ToLowerInvariant()));
+                        allLines.AddRange(
+                            item.PlaintextLines.Map(s => s.Replace("-", string.Empty).ToLowerInvariant()));
                     }
 
                     var contents = string.Join(' ', allLines);
