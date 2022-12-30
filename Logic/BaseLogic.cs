@@ -29,7 +29,7 @@ public abstract class BaseLogic
         string fullPath = Path.GetFullPath(folder);
         if (!Directory.Exists(fullPath))
         {
-            _logger.LogCritical("Folder must be a directory");
+            _logger.LogCritical("Folder {Folder} must be a directory", fullPath);
             return 1;
         }
 
@@ -104,6 +104,31 @@ public abstract class BaseLogic
                     var contents = string.Join(' ', allLines);
                     result.Add(new ReferenceSubtitles(seasonNumber, episodeNumber, contents, allLines.Count));
                 }
+            }
+        }
+
+        foreach (string referenceFile in Directory.EnumerateFiles(
+                     referenceFolder,
+                     "*.txt",
+                     SearchOption.TopDirectoryOnly))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Match match = ReferencePattern.Match(referenceFile);
+            if (match.Success)
+            {
+                var seasonNumber = int.Parse(match.Groups[1].Value);
+                var episodeNumber = int.Parse(match.Groups[2].Value);
+                await using FileStream fs = File.OpenRead(referenceFile);
+                using var sr = new StreamReader(fs, Encoding.UTF8);
+                var allLines = new List<string>();
+                while (await sr.ReadLineAsync() is { } line)
+                {
+                    allLines.Add(line.Replace("-", string.Empty).ToLowerInvariant());
+                }
+
+                var contents = string.Join(' ', allLines);
+                result.Add(new ReferenceSubtitles(seasonNumber, episodeNumber, contents, allLines.Count));
             }
         }
 

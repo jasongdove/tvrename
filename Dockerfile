@@ -1,24 +1,25 @@
 FROM lsiobase/ubuntu:jammy AS runtime-base
-RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y --no-install-recommends \
+
+ENV DEBIAN_FRONTEND="noninteractive"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     mkvtoolnix \
     libtesseract4 \
+    build-essential \
     git \
-    software-properties-common && add-apt-repository ppa:deadsnakes/ppa && apt update && apt install -y --no-install-recommends \
-    python3.7 \
-    python3.7-distutils && \
-    apt -y clean && \
+    software-properties-common && \
+    add-apt-repository 'ppa:deadsnakes/ppa' && apt-get update && apt-get install -y --no-install-recommends \
+    python3.9 \
+    python3.9-distutils \
+    python3.9-dev && \
+    apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /app/dotnet && \
-    curl -o /tmp/dotnet-install.sh -L https://dot.net/v1/dotnet-install.sh && \
-    chmod +x /tmp/dotnet-install.sh && \
-    /tmp/dotnet-install.sh --version 6.0.5 --install-dir /app/dotnet --runtime dotnet
-
 RUN mkdir -p /app/autosub && git clone --branch audio-filter https://github.com/jasongdove/AutoSub /app/autosub && \
-    curl -o /tmp/get-pip.py -L https://bootstrap.pypa.io/get-pip.py && python3.7 /tmp/get-pip.py && \
+    curl -o /tmp/get-pip.py -L https://bootstrap.pypa.io/get-pip.py && python3.9 /tmp/get-pip.py && \
     pip3 install --no-cache-dir -r /app/autosub/requirements.txt && \
-    cd /app/autosub && pip3.7 install -e . && mkdir audio output && chmod 777 audio && chmod 777 output
+    cd /app/autosub && pip3.9 install -e . && mkdir audio output && chmod 777 audio && chmod 777 output
 
 COPY models/model.tflite /app/autosub/model.tflite
 COPY models/large_vocabulary.scorer /app/autosub/large_vocabulary.scorer
@@ -26,7 +27,7 @@ COPY models/large_vocabulary.scorer /app/autosub/large_vocabulary.scorer
 ENV DOTNET_ROOT=/app/dotnet
 
 FROM mcr.microsoft.com/dotnet/sdk:6.0-jammy as build
-RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y \
+RUN apt-get update && apt-get install -y \
     libtiff5-dev \
     libtesseract-dev \
     tesseract-ocr-eng \
