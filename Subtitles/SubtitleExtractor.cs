@@ -132,7 +132,7 @@ public class SubtitleExtractor
             _ => "pan=mono|c0=FC,speechnorm"
         };
 
-        BufferedCommandResult result = await Cli.Wrap("python3.7")
+        BufferedCommandResult result = await Cli.Wrap("python3.9")
             .WithWorkingDirectory("/app/autosub")
             .WithArguments(
                 new[]
