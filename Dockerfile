@@ -16,6 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /app/dotnet && \
+    curl -o /tmp/dotnet-install.sh -L https://dot.net/v1/dotnet-install.sh && \
+    chmod +x /tmp/dotnet-install.sh && \
+    /tmp/dotnet-install.sh --version 6.0.12 --install-dir /app/dotnet --runtime dotnet
+
 RUN mkdir -p /app/autosub && git clone --branch audio-filter https://github.com/jasongdove/AutoSub /app/autosub && \
     curl -o /tmp/get-pip.py -L https://bootstrap.pypa.io/get-pip.py && python3.9 /tmp/get-pip.py && \
     pip3 install --no-cache-dir -r /app/autosub/requirements.txt && \

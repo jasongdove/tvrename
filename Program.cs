@@ -11,15 +11,15 @@ using TvRename.Commands;
 using TvRename.Logic;
 using TvRename.Subtitles;
 
-string executablePath = Process.GetCurrentProcess().MainModule.FileName;
-string executable = Path.GetFileNameWithoutExtension(executablePath);
+string executablePath = Process.GetCurrentProcess().MainModule!.FileName!;
+string executable = Path.GetFileNameWithoutExtension(executablePath)!;
 
 IConfigurationBuilder builder = new ConfigurationBuilder();
 
 string basePath = Path.GetDirectoryName(
     "dotnet".Equals(executable, StringComparison.InvariantCultureIgnoreCase)
         ? typeof(Program).Assembly.Location
-        : executablePath);
+        : executablePath)!;
 
 IConfigurationRoot configuration = builder
     .SetBasePath(basePath)
