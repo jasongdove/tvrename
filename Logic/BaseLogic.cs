@@ -9,8 +9,8 @@ namespace TvRename.Logic;
 
 public abstract class BaseLogic
 {
-    private static readonly Regex ReferencePattern = new(@".*s([\d]{2})e([\d]{2}).*");
-    private static readonly Regex SeasonPattern = new(@"([\d]+)");
+    private static readonly Regex ReferencePattern = new(@".*(?:s)(\d+)[ex](\d+).*", RegexOptions.IgnoreCase);
+    private static readonly Regex SeasonPattern = new(@"(\d+)");
 
     private readonly ILogger _logger;
 
