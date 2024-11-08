@@ -45,6 +45,8 @@ public class SubtitleProcessor
                     .ToList();
             }
 
+            _logger.LogDebug("Failed to convert lines");
+
             return new Exception("Failed to convert lines");
         }
         catch (Exception ex)
@@ -89,6 +91,8 @@ public class SubtitleProcessor
         {
             return new ExtractedSrtSubtitles(Path.ChangeExtension(pgs.FileName, "srt"), pgs.StreamNumber);
         }
+
+        _logger.LogError("PgsToSrt failed to convert; exit code {ExitCode}", result.ExitCode);
 
         return new Exception($"PgsToSrt failed to convert; exit code {result.ExitCode}");
     }
