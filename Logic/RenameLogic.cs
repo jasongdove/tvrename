@@ -96,15 +96,16 @@ public class RenameLogic : BaseLogic
                 if (match.Confidence * 100 >= parameters.Confidence)
                 {
                     _logger.LogInformation(
-                        "Matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
+                        "Matched s{SeasonNumber:00}e{EpisodeNumbers} with confidence {Confidence}",
                         match.SeasonNumber,
-                        match.EpisodeNumber,
+                        string.Join("-e", match.EpisodeNumbers.Select(e => $"{e:00}")),
                         Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
 
                     if (!parameters.DryRun)
                     {
+                        string episodeNumbers = string.Join("-e", match.EpisodeNumbers.Select(e => $"{e:00}"));
                         string source =
-                            $"{parameters.Title} - s{match.SeasonNumber:00}e{match.EpisodeNumber:00}.mkv";
+                            $"{parameters.Title} - s{match.SeasonNumber:00}e{episodeNumbers}.mkv";
                         string dest = Path.Combine(parameters.Folder, source);
 
                         if (!File.Exists(dest))

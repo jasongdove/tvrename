@@ -20,7 +20,7 @@ public class SubtitleMatcher
                     int count = extractedLines.Count(l => r.Contents.Contains(l));
                     double confidence = count * 1.0 / r.Lines;
                     double weightedConfidence = count * (Math.Log(r.Lines + WEIGHT_FACTOR) / Math.Log(WEIGHT_FACTOR));
-                    return new MatchedEpisode(r.SeasonNumber, r.EpisodeNumber, confidence, weightedConfidence);
+                    return new MatchedEpisode(r.SeasonNumber, r.EpisodeNumbers, confidence, weightedConfidence);
                 })
             .OrderByDescending(m => m.WeightedConfidence).ToList();
 

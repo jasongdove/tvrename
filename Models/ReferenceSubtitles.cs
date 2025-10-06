@@ -1,3 +1,3 @@
 ﻿namespace TvRename.Models;
 
-public record ReferenceSubtitles(int SeasonNumber, int EpisodeNumber, string Contents, int Lines);
+public record ReferenceSubtitles(int SeasonNumber, List<int> EpisodeNumbers, string Contents, int Lines);

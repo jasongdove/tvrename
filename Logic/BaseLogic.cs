@@ -7,11 +7,8 @@ using TvRename.Models;
 
 namespace TvRename.Logic;
 
-public abstract class BaseLogic
+public abstract partial class BaseLogic
 {
-    private static readonly Regex ReferencePattern = new(@".*(?:s)(\d+)[ex](\d+).*", RegexOptions.IgnoreCase);
-    private static readonly Regex SeasonPattern = new(@"(\d+)");
-
     private readonly ILogger _logger;
 
     protected BaseLogic(ILogger logger) => _logger = logger;
@@ -86,11 +83,16 @@ public abstract class BaseLogic
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            Match match = ReferencePattern.Match(referenceFile);
+            Match match = ReferencePattern().Match(referenceFile);
             if (match.Success)
             {
                 var seasonNumber = int.Parse(match.Groups[1].Value);
-                var episodeNumber = int.Parse(match.Groups[2].Value);
+                var episodeNumbers = new List<int> { int.Parse(match.Groups[2].Value) };
+                if (match.Groups[3].Success)
+                {
+                    episodeNumbers.Add(int.Parse(match.Groups[3].Value));
+                }
+
                 await using FileStream fs = File.OpenRead(referenceFile);
                 foreach (List<SubtitleItem> parsed in Optional(parser.ParseStream(fs, Encoding.UTF8)))
                 {
@@ -102,7 +104,7 @@ public abstract class BaseLogic
                     }
 
                     var contents = string.Join(' ', allLines);
-                    result.Add(new ReferenceSubtitles(seasonNumber, episodeNumber, contents, allLines.Count));
+                    result.Add(new ReferenceSubtitles(seasonNumber, episodeNumbers, contents, allLines.Count));
                 }
             }
         }
@@ -114,11 +116,16 @@ public abstract class BaseLogic
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            Match match = ReferencePattern.Match(referenceFile);
+            Match match = ReferencePattern().Match(referenceFile);
             if (match.Success)
             {
                 var seasonNumber = int.Parse(match.Groups[1].Value);
-                var episodeNumber = int.Parse(match.Groups[2].Value);
+                var episodeNumbers = new List<int> { int.Parse(match.Groups[2].Value) };
+                if (match.Groups[3].Success)
+                {
+                    episodeNumbers.Add(int.Parse(match.Groups[3].Value));
+                }
+
                 await using FileStream fs = File.OpenRead(referenceFile);
                 using var sr = new StreamReader(fs, Encoding.UTF8);
                 var allLines = new List<string>();
@@ -128,7 +135,7 @@ public abstract class BaseLogic
                 }
 
                 var contents = string.Join(' ', allLines);
-                result.Add(new ReferenceSubtitles(seasonNumber, episodeNumber, contents, allLines.Count));
+                result.Add(new ReferenceSubtitles(seasonNumber, episodeNumbers, contents, allLines.Count));
             }
         }
 
@@ -164,7 +171,7 @@ public abstract class BaseLogic
 
         foreach (DirectoryInfo seasonFolder in Optional(new DirectoryInfo(folder)))
         {
-            Match seasonMatch = SeasonPattern.Match(seasonFolder.Name);
+            Match seasonMatch = SeasonPattern().Match(seasonFolder.Name);
             if (seasonMatch.Success && int.TryParse(seasonMatch.Groups[1].ValueSpan, out int seasonNumber))
             {
                 return seasonNumber;
@@ -178,4 +185,10 @@ public abstract class BaseLogic
 
         return None;
     }
+
+    [GeneratedRegex(@".*(?:s)(\d+)(?:e)(\d+)(?:-e(\d+))?.*", RegexOptions.IgnoreCase, "en-US")]
+    private static partial Regex ReferencePattern();
+
+    [GeneratedRegex(@"(\d+)")]
+    private static partial Regex SeasonPattern();
 }

@@ -106,7 +106,8 @@ public class VerifyLogic : BaseLogic
                 .HeadOrNone();
             foreach (MatchedEpisode match in maybeBestMatch)
             {
-                string nameSegment = $"s{match.SeasonNumber:00}e{match.EpisodeNumber:00}";
+                string episodeNumbers = string.Join("-e", match.EpisodeNumbers.Select(e => $"{e:00}"));
+                string nameSegment = $"s{match.SeasonNumber:00}e{episodeNumbers}";
 
                 if (match.Confidence * 100 >= parameters.Confidence)
                 {
@@ -120,9 +121,9 @@ public class VerifyLogic : BaseLogic
                     else
                     {
                         _logger.LogWarning(
-                            "Verify failed; matched s{SeasonNumber:00}e{EpisodeNumber:00} with confidence {Confidence}",
+                            "Verify failed; matched s{SeasonNumber:00}e{episodeNumbers} with confidence {Confidence}",
                             match.SeasonNumber,
-                            match.EpisodeNumber,
+                            episodeNumbers,
                             Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
                     }
                 }
