@@ -7,11 +7,8 @@ using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
-public class SubtitleProcessor
+public partial class SubtitleProcessor
 {
-    private static readonly Regex BadApostrophe = new(@"(?<=\w)\s*['’](?=\w)");
-    private static readonly Regex NamesAndDashes = new(@"-[\s\w\d#]*[:\s]*");
-    private static readonly Regex Sdh = new(@"[\(\[].*[\)\]]");
     private readonly ILogger<SubtitleProcessor> _logger;
 
     public SubtitleProcessor(ILogger<SubtitleProcessor> logger) => _logger = logger;
@@ -37,11 +34,11 @@ public class SubtitleProcessor
                     .Flatten()
                     .Map(line => line.ToLowerInvariant())
                     .Map(line => line.Replace("||", "ll"))
-                    .Map(line => BadApostrophe.Replace(line, "'"))
-                    .Map(line => NamesAndDashes.Replace(line, string.Empty))
+                    .Map(line => BadApostrophe().Replace(line, "'"))
+                    .Map(line => NamesAndDashes().Replace(line, string.Empty))
                     .Map(line => line.Trim())
                     .Filter(line => !string.IsNullOrWhiteSpace(line))
-                    .Filter(line => !Sdh.Match(line).Success)
+                    .Filter(line => !Sdh().Match(line).Success)
                     .ToList();
             }
 
@@ -96,4 +93,13 @@ public class SubtitleProcessor
 
         return new Exception($"PgsToSrt failed to convert; exit code {result.ExitCode}");
     }
+
+    [GeneratedRegex(@"(?<=\w)\s*['’](?=\w)")]
+    private static partial Regex BadApostrophe();
+
+    [GeneratedRegex(@"-[\s\w\d#]*[:\s]*")]
+    private static partial Regex NamesAndDashes();
+
+    [GeneratedRegex(@"[\(\[].*[\)\]]")]
+    private static partial Regex Sdh();
 }

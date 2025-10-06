@@ -7,10 +7,8 @@ using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
-public class ReferenceSubtitleDownloader
+public partial class ReferenceSubtitleDownloader
 {
-    private readonly Regex _badMilliseconds = new(@"([\d]{2}):([\d]{2}):([\d]{2}),([\d]{2})(?!\d)");
-    private readonly Regex _badSeconds = new(@"([\d]{2}):([\d]{2}):(\d),([\d]{2,3})");
     private readonly ILogger<ReferenceSubtitleDownloader> _logger;
 
     private readonly OpenSubtitlesApiClient _openSubtitlesApiClient;
@@ -32,10 +30,9 @@ public class ReferenceSubtitleDownloader
         }
 
         Option<int> maybeExpectedEpisodeCount = await GetExpectedEpisodeCount(referenceFolder);
-        int actualEpisodeCount = GetActualEpisodeCount(referenceFolder);
-        if (maybeExpectedEpisodeCount == actualEpisodeCount)
+        foreach (int expectedEpisodeCount in maybeExpectedEpisodeCount)
         {
-            return actualEpisodeCount;
+            return expectedEpisodeCount;
         }
 
         // search open subtitles
@@ -83,9 +80,6 @@ public class ReferenceSubtitleDownloader
 
         return None;
     }
-
-    private static int GetActualEpisodeCount(string referenceFolder) =>
-        Directory.EnumerateFiles(referenceFolder, "*.srt", SearchOption.TopDirectoryOnly).Count();
 
     private static async Task WriteEpisodeCount(string referenceFolder, int episodeCount)
     {
@@ -177,7 +171,7 @@ public class ReferenceSubtitleDownloader
         {
             string nextLine = line;
 
-            Match m1 = _badSeconds.Match(line);
+            Match m1 = BadSeconds().Match(line);
             if (m1.Success)
             {
                 nextLine = line.Replace(
@@ -185,7 +179,7 @@ public class ReferenceSubtitleDownloader
                     $"{m1.Groups[1].Value}:{m1.Groups[2].Value}:0{m1.Groups[3].Value},{m1.Groups[4].Value}");
             }
 
-            Match m2 = _badMilliseconds.Match(line);
+            Match m2 = BadMilliseconds().Match(line);
             if (m2.Success)
             {
                 nextLine = line.Replace(
@@ -199,4 +193,10 @@ public class ReferenceSubtitleDownloader
         sb.AppendLine();
         return sb.ToString();
     }
+
+    [GeneratedRegex(@"([\d]{2}):([\d]{2}):([\d]{2}),([\d]{2})(?!\d)")]
+    private static partial Regex BadMilliseconds();
+
+    [GeneratedRegex(@"([\d]{2}):([\d]{2}):(\d),([\d]{2,3})")]
+    private static partial Regex BadSeconds();
 }
