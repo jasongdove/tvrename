@@ -12,9 +12,9 @@
     },
     "WriteTo": [
       {
-        "Name": "Console",
+        "Name": "Spectre",
         "Args": {
-          "theme": "Serilog.Sinks.SystemConsole.Themes.AnsiConsoleTheme::Code, Serilog.Sinks.Console"
+          "outputTemplate": "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}"
         }
       }
     ],
