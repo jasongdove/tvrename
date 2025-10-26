@@ -2,7 +2,6 @@
 using System.CommandLine.Builder;
 using System.CommandLine.Hosting;
 using System.CommandLine.Parsing;
-using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,8 +10,8 @@ using TvRename.Commands;
 using TvRename.Logic;
 using TvRename.Subtitles;
 
-string executablePath = Process.GetCurrentProcess().MainModule!.FileName!;
-string executable = Path.GetFileNameWithoutExtension(executablePath)!;
+string executablePath = Environment.ProcessPath!;
+string executable = Path.GetFileNameWithoutExtension(executablePath);
 
 IConfigurationBuilder builder = new ConfigurationBuilder();
 
