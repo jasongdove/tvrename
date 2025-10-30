@@ -90,7 +90,11 @@ public abstract partial class BaseLogic
                 var episodeNumbers = new List<int> { int.Parse(match.Groups[2].Value) };
                 if (match.Groups[3].Success)
                 {
-                    episodeNumbers.Add(int.Parse(match.Groups[3].Value));
+                    int i = episodeNumbers[0] + 1;
+                    while (i <= int.Parse(match.Groups[3].Value))
+                    {
+                        episodeNumbers.Add(i++);
+                    }
                 }
 
                 await using FileStream fs = File.OpenRead(referenceFile);
@@ -123,7 +127,11 @@ public abstract partial class BaseLogic
                 var episodeNumbers = new List<int> { int.Parse(match.Groups[2].Value) };
                 if (match.Groups[3].Success)
                 {
-                    episodeNumbers.Add(int.Parse(match.Groups[3].Value));
+                    int i = episodeNumbers[0] + 1;
+                    while (i <= int.Parse(match.Groups[3].Value))
+                    {
+                        episodeNumbers.Add(i++);
+                    }
                 }
 
                 await using FileStream fs = File.OpenRead(referenceFile);
