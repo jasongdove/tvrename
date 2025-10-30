@@ -53,12 +53,13 @@ public class VerifyLogic : BaseLogic
         List<ReferenceSubtitles> referenceSubtitles =
             await LoadReferenceSubtitles(parameters.Folder, cancellationToken);
 
-        if (downloadCount != referenceSubtitles.Count)
+        int referenceCount = referenceSubtitles.Sum(s => s.EpisodeNumbers.Count);
+        if (downloadCount != referenceCount)
         {
             _logger.LogError(
                 "Available subtitles count {DownloadCount} doesn't match reference subtitles count {ReferenceCount}",
                 downloadCount,
-                referenceSubtitles.Count);
+                referenceCount);
 
             return 1;
         }
@@ -106,8 +107,10 @@ public class VerifyLogic : BaseLogic
                 .HeadOrNone();
             foreach (MatchedEpisode match in maybeBestMatch)
             {
-                string episodeNumbers = string.Join("-e", match.EpisodeNumbers.Select(e => $"{e:00}"));
-                string nameSegment = $"s{match.SeasonNumber:00}e{episodeNumbers}";
+                string episodeNumbers = match.EpisodeNumbers.Count > 1
+                    ? $"e{match.EpisodeNumbers.First():00}-e{match.EpisodeNumbers.Last():00}"
+                    : $"e{match.EpisodeNumbers.First():00}";
+                string nameSegment = $"s{match.SeasonNumber:00}{episodeNumbers}";
 
                 if (match.Confidence * 100 >= parameters.Confidence)
                 {
@@ -121,7 +124,7 @@ public class VerifyLogic : BaseLogic
                     else
                     {
                         _logger.LogWarning(
-                            "Verify failed; matched s{SeasonNumber:00}e{episodeNumbers} with confidence {Confidence}",
+                            "Verify failed; matched s{SeasonNumber:00}{episodeNumbers} with confidence {Confidence}",
                             match.SeasonNumber,
                             episodeNumbers,
                             Math.Clamp((int)(match.Confidence * 100.0), 0, 100));
