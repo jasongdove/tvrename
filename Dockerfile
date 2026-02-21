@@ -19,8 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /app/dotnet && \
     curl -o /tmp/dotnet-install.sh -L https://dot.net/v1/dotnet-install.sh && \
     chmod +x /tmp/dotnet-install.sh && \
-    /tmp/dotnet-install.sh --version 8.0.6 --install-dir /app/dotnet --runtime dotnet && \
-    /tmp/dotnet-install.sh --version 6.0.31 --install-dir /app/dotnet --runtime dotnet
+    /tmp/dotnet-install.sh --version 8.0.24 --install-dir /app/dotnet --runtime dotnet
 
 RUN mkdir -p /app/autosub && git clone --branch audio-filter https://github.com/jasongdove/AutoSub /app/autosub && \
     curl -o /tmp/get-pip.py -L https://bootstrap.pypa.io/get-pip.py && python3.9 /tmp/get-pip.py && \
@@ -52,9 +51,9 @@ RUN git clone https://github.com/bubonic/VobSub2SRT && \
     make install
 
 RUN mkdir -p /tmp/pgstosrt && mkdir -p /app && \
-    curl -o /tmp/pgstosrt/release.zip -L https://github.com/Tentacule/PgsToSrt/releases/download/v1.4.2/PgsToSrt-1.4.2.zip && \
+    curl -o /tmp/pgstosrt/release.zip -L https://github.com/Tentacule/PgsToSrt/releases/download/v1.4.8/PgsToStr-1.4.8.zip && \
     unzip /tmp/pgstosrt/release.zip -d /tmp/pgstosrt && \
-    mv /tmp/pgstosrt/net6 /app/pgstosrt && \
+    mv /tmp/pgstosrt/ /app/pgstosrt && \
     mkdir -p /app/pgstosrt/tessdata && \
     curl -o /app/pgstosrt/tessdata/eng.traineddata -L https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata     
 

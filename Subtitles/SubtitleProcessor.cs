@@ -7,21 +7,19 @@ using TvRename.Models;
 
 namespace TvRename.Subtitles;
 
-public partial class SubtitleProcessor
+public partial class SubtitleProcessor(ILogger<SubtitleProcessor> logger)
 {
-    private readonly ILogger<SubtitleProcessor> _logger;
-
-    public SubtitleProcessor(ILogger<SubtitleProcessor> logger) => _logger = logger;
-
-    public async Task<Either<Exception, List<string>>> ConvertToLines(ExtractedSubtitles subtitles)
+    public async Task<Either<Exception, List<string>>> ConvertToLines(
+        ExtractedSubtitles subtitles,
+        CancellationToken cancellationToken)
     {
         try
         {
             Either<Exception, ExtractedSrtSubtitles> subRip = subtitles switch
             {
                 ExtractedSrtSubtitles srt => srt,
-                ExtractedDvdSubtitles dvd => await Ocr(dvd),
-                ExtractedPgsSubtitles pgs => await Ocr(pgs),
+                ExtractedDvdSubtitles dvd => await Ocr(dvd, cancellationToken),
+                ExtractedPgsSubtitles pgs => await Ocr(pgs, cancellationToken),
                 _ => throw new IndexOutOfRangeException(nameof(subtitles))
             };
 
@@ -42,7 +40,7 @@ public partial class SubtitleProcessor
                     .ToList();
             }
 
-            _logger.LogDebug("Failed to convert lines");
+            logger.LogDebug("Failed to convert lines");
 
             return new Exception("Failed to convert lines");
         }
@@ -52,16 +50,18 @@ public partial class SubtitleProcessor
         }
     }
 
-    private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedDvdSubtitles dvd)
+    private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(
+        ExtractedDvdSubtitles dvd,
+        CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Converting DVD bitmap subtitles to text");
+        logger.LogInformation("Converting DVD bitmap subtitles to text");
 
         string tessdataFolder = Path.Combine(Directory.GetCurrentDirectory(), "pgstosrt", "tessdata");
 
         CommandResult result = await Cli.Wrap("vobsub2srt")
-            .WithArguments(new[] { "-l", "en", dvd.BaseName, "--tesseract-data", tessdataFolder })
+            .WithArguments(["-l", "en", dvd.BaseName, "--tesseract-data", tessdataFolder])
             .WithValidation(CommandResultValidation.None)
-            .ExecuteAsync(CancellationToken.None);
+            .ExecuteAsync(cancellationToken);
 
         string srtFileName = Path.ChangeExtension(dvd.FileName, "srt");
 
@@ -73,23 +73,25 @@ public partial class SubtitleProcessor
         return new Exception($"VobSub2SRT failed to convert; exit code {result.ExitCode}");
     }
 
-    private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(ExtractedPgsSubtitles pgs)
+    private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(
+        ExtractedPgsSubtitles pgs,
+        CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Converting PGS bitmap subtitles to text");
+        logger.LogInformation("Converting PGS bitmap subtitles to text");
 
         string srtFileName = Path.ChangeExtension(pgs.FileName, "srt");
 
         CommandResult result = await Cli.Wrap("dotnet")
-            .WithArguments(new[] { "pgstosrt/PgsToSrt.dll", "--input", pgs.FileName, "--output", srtFileName })
+            .WithArguments(["pgstosrt/PgsToSrt.dll", "--input", pgs.FileName, "--output", srtFileName])
             .WithValidation(CommandResultValidation.None)
-            .ExecuteAsync(CancellationToken.None);
+            .ExecuteAsync(cancellationToken);
 
         if (result.ExitCode == 0 && File.Exists(srtFileName))
         {
             return new ExtractedSrtSubtitles(Path.ChangeExtension(pgs.FileName, "srt"), pgs.StreamNumber);
         }
 
-        _logger.LogError("PgsToSrt failed to convert; exit code {ExitCode}", result.ExitCode);
+        logger.LogError("PgsToSrt failed to convert; exit code {ExitCode}", result.ExitCode);
 
         return new Exception($"PgsToSrt failed to convert; exit code {result.ExitCode}");
     }
