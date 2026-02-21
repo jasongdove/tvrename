@@ -30,7 +30,9 @@ RUN apt-get update && apt-get install -y \
     cmake \
     pkg-config \
     git \
-    unzip
+    curl \
+    unzip \
+    libclang-dev
 
 WORKDIR /source
 
@@ -43,11 +45,10 @@ RUN git clone --depth 1 https://github.com/ggerganov/whisper.cpp /tmp/whisper &&
     cmake --build /tmp/whisper/build --config Release -j $(nproc) && \
     cp /tmp/whisper/build/bin/whisper-cli /usr/local/bin/whisper-cli
 
-RUN git clone https://github.com/bubonic/VobSub2SRT && \
-    cd VobSub2SRT && \
-    ./configure && \
-    make && \
-    make install
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . "$HOME/.cargo/env" && \
+    cargo install subtile-ocr && \
+    cp "$HOME/.cargo/bin/subtile-ocr" /usr/local/bin/subtile-ocr
 
 RUN mkdir -p /tmp/pgstosrt && mkdir -p /app && \
     curl -o /tmp/pgstosrt/release.zip -L https://github.com/Tentacule/PgsToSrt/releases/download/v1.4.8/PgsToStr-1.4.8.zip && \
@@ -67,7 +68,7 @@ FROM runtime-base
 ENV PATH="/app/dotnet:${PATH}"
 ENV CACHE_FOLDER="/cache"
 WORKDIR /app
-COPY --from=build /usr/local/bin/vobsub2srt /usr/local/bin/vobsub2srt
+COPY --from=build /usr/local/bin/subtile-ocr /usr/local/bin/subtile-ocr
 COPY --from=build /usr/local/bin/whisper-cli /usr/local/bin/whisper-cli
 COPY --from=build /app ./
 COPY wrapper.sh /app/wrapper.sh

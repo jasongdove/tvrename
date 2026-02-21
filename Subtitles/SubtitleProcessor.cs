@@ -61,20 +61,21 @@ public partial class SubtitleProcessor(ILogger<SubtitleProcessor> logger)
         logger.LogInformation("Converting DVD bitmap subtitles to text");
 
         string tessdataFolder = Path.Combine(Directory.GetCurrentDirectory(), "pgstosrt", "tessdata");
+        string idxFileName = Path.ChangeExtension(dvd.FileName, "idx");
+        string srtFileName = Path.ChangeExtension(dvd.FileName, "srt");
 
-        CommandResult result = await Cli.Wrap("vobsub2srt")
-            .WithArguments(["-l", "en", dvd.BaseName, "--tesseract-data", tessdataFolder])
+        CommandResult result = await Cli.Wrap("subtile-ocr")
+            .WithArguments(["-l", "eng", "-o", srtFileName, idxFileName])
+            .WithEnvironmentVariables(new Dictionary<string, string?> { { "TESSDATA_PREFIX", tessdataFolder } })
             .WithValidation(CommandResultValidation.None)
             .ExecuteAsync(cancellationToken);
-
-        string srtFileName = Path.ChangeExtension(dvd.FileName, "srt");
 
         if (result.ExitCode == 0 && File.Exists(srtFileName))
         {
             return new ExtractedSrtSubtitles(srtFileName, dvd.StreamNumber);
         }
 
-        return new Exception($"VobSub2SRT failed to convert; exit code {result.ExitCode}");
+        return new Exception($"subtile-ocr failed to convert; exit code {result.ExitCode}");
     }
 
     private async Task<Either<Exception, ExtractedSrtSubtitles>> Ocr(
