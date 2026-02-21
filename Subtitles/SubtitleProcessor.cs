@@ -44,6 +44,10 @@ public partial class SubtitleProcessor(ILogger<SubtitleProcessor> logger)
 
             return new Exception("Failed to convert lines");
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             return ex;

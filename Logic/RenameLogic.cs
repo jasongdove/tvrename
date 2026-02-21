@@ -83,6 +83,11 @@ public class RenameLogic : BaseLogic
                 continue;
             }
 
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return 2;
+            }
+
             // process subtitles
             List<ExtractedSubtitles> extractedSubtitles = extractResult.RightToSeq().Head();
             IEnumerable<Task<Option<MatchedEpisode>>>? matchTasks =
