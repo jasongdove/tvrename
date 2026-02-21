@@ -1,11 +1,11 @@
-FROM lsiobase/ubuntu:jammy AS runtime-base
+FROM lsiobase/ubuntu:noble AS runtime-base
 
 ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     mkvtoolnix \
-    libtesseract4 \
+    libtesseract5 \
     libgomp1 && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
@@ -21,7 +21,7 @@ RUN mkdir -p /app/whisper && \
 ENV DOTNET_ROOT=/app/dotnet
 ENV WHISPER_MODEL=/app/whisper/model.bin
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0-jammy AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0-noble AS build
 RUN apt-get update && apt-get install -y \
     libtiff5-dev \
     libtesseract-dev \

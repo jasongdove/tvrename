@@ -87,7 +87,7 @@ public partial class SubtitleProcessor(ILogger<SubtitleProcessor> logger)
         string srtFileName = Path.ChangeExtension(pgs.FileName, "srt");
 
         CommandResult result = await Cli.Wrap("dotnet")
-            .WithArguments(["pgstosrt/PgsToSrt.dll", "--input", pgs.FileName, "--output", srtFileName])
+            .WithArguments(["pgstosrt/PgsToSrt.dll", "--tesseractversion", "5", "--input", pgs.FileName, "--output", srtFileName])
             .WithValidation(CommandResultValidation.None)
             .ExecuteAsync(cancellationToken);
 
