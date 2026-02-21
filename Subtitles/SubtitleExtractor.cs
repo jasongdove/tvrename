@@ -135,14 +135,13 @@ public class SubtitleExtractor
         BufferedCommandResult result = await Cli.Wrap("python3.9")
             .WithWorkingDirectory("/app/autosub")
             .WithArguments(
-                new[]
-                {
-                    "-m", "autosub.main",
-                    "--file", fileName,
-                    "--format", "srt",
-                    "--split-duration", "1",
-                    "--audio-filter", audioFilter
-                })
+            [
+                "-m", "autosub.main",
+                "--file", fileName,
+                "--format", "srt",
+                "--split-duration", "1",
+                "--audio-filter", audioFilter
+            ])
             .WithValidation(CommandResultValidation.None)
             .ExecuteBufferedAsync(cancellationToken);
 
@@ -163,7 +162,7 @@ public class SubtitleExtractor
         CancellationToken cancellationToken)
     {
         BufferedCommandResult result = await Cli.Wrap("mkvextract")
-            .WithArguments(new[] { inputFile, "tracks", $"{stream.index}:{outputFile}" })
+            .WithArguments([inputFile, "tracks", $"{stream.index}:{outputFile}"])
             .WithValidation(CommandResultValidation.None)
             .ExecuteBufferedAsync(cancellationToken);
 
@@ -181,7 +180,7 @@ public class SubtitleExtractor
         CancellationToken cancellationToken)
     {
         BufferedCommandResult result = await Cli.Wrap("ffprobe")
-            .WithArguments(new[] { "-v", "quiet", "-print_format", "json", "-show_streams", "-i", fileName })
+            .WithArguments(["-v", "quiet", "-print_format", "json", "-show_streams", "-i", fileName])
             .WithValidation(CommandResultValidation.None)
             .ExecuteBufferedAsync(Encoding.UTF8, cancellationToken);
 
