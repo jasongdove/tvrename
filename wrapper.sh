@@ -10,9 +10,8 @@ set_uidgid () {
 run_tvrename () {
   chown -R "$PUID":"$PGID" /cache
   set_uidgid
-  s6-setuidgid abc \
+  exec s6-setuidgid abc \
     /app/TvRename "${FULL_ARGS[@]}"
-  exit 0
 }
 
 usermod -a -G root abc

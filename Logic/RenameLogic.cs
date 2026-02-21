@@ -83,10 +83,15 @@ public class RenameLogic : BaseLogic
                 continue;
             }
 
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return 2;
+            }
+
             // process subtitles
             List<ExtractedSubtitles> extractedSubtitles = extractResult.RightToSeq().Head();
             IEnumerable<Task<Option<MatchedEpisode>>>? matchTasks =
-                extractedSubtitles.Map(es => Match(referenceSubtitles, es));
+                extractedSubtitles.Map(es => Match(referenceSubtitles, es, cancellationToken));
             Option<MatchedEpisode>[] matches = await Task.WhenAll(matchTasks);
             Option<MatchedEpisode> maybeBestMatch = matches.Somes()
                 .OrderByDescending(m => m.Confidence)
@@ -135,9 +140,11 @@ public class RenameLogic : BaseLogic
 
     private async Task<Option<MatchedEpisode>> Match(
         List<ReferenceSubtitles> referenceSubtitles,
-        ExtractedSubtitles extractedSubtitles)
+        ExtractedSubtitles extractedSubtitles,
+        CancellationToken cancellationToken)
     {
-        Either<Exception, List<string>> extractedLines = await _subtitleProcessor.ConvertToLines(extractedSubtitles);
+        Either<Exception, List<string>> extractedLines =
+            await _subtitleProcessor.ConvertToLines(extractedSubtitles, cancellationToken);
         foreach (List<string> lines in extractedLines.RightToSeq())
         {
             return _subtitleMatcher.Match(referenceSubtitles, lines);
