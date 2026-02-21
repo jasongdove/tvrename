@@ -51,13 +51,15 @@ public class SubtitleExtractor
         ProbeStreamsResult streamsResult = await ProbeStreams(fileName, cancellationToken);
         if (!streamsResult.MaybeSubtitles.Any())
         {
-            if (Directory.Exists("/app/autosub"))
+            Option<string> maybeWhisperModel = Environment.GetEnvironmentVariable("WHISPER_MODEL");
+            if (maybeWhisperModel.IsSome)
             {
                 _logger.LogInformation("Generating subtitles file {File}", srtFileName);
 
                 int audioChannels = streamsResult.MaybeAudio.Map(s => s.channels).IfNone(2);
+                string model = maybeWhisperModel.IfNone(string.Empty);
 
-                if (await GenerateSubtitles(fileName, srtFileName, audioChannels, cancellationToken))
+                if (await GenerateSubtitles(fileName, srtFileName, audioChannels, model, cancellationToken))
                 {
                     return new List<ExtractedSubtitles> { new ExtractedSrtSubtitles(srtFileName, -1) };
                 }
@@ -65,7 +67,7 @@ public class SubtitleExtractor
             else
             {
                 return new NotSupportedException(
-                    "Subtitle generation via speech-to-text is not supported outside of docker");
+                    "Subtitle generation via speech-to-text requires the WHISPER_MODEL environment variable to be set");
             }
         }
 
@@ -119,11 +121,10 @@ public class SubtitleExtractor
         string fileName,
         string srtFileName,
         int audioChannels,
+        string model,
         CancellationToken cancellationToken)
     {
-        string expectedOutputFile = Path.Combine(
-            "/app/autosub/output",
-            Path.ChangeExtension(Path.GetFileName(fileName), "srt"));
+        string tempWav = Path.GetTempFileName() + ".wav";
 
         string audioFilter = audioChannels switch
         {
@@ -132,26 +133,47 @@ public class SubtitleExtractor
             _ => "pan=mono|c0=FC,speechnorm"
         };
 
-        BufferedCommandResult result = await Cli.Wrap("python3.9")
-            .WithWorkingDirectory("/app/autosub")
-            .WithArguments(
-            [
-                "-m", "autosub.main",
-                "--file", fileName,
-                "--format", "srt",
-                "--split-duration", "1",
-                "--audio-filter", audioFilter
+        BufferedCommandResult ffmpegResult = await Cli.Wrap("ffmpeg")
+            .WithArguments([
+                "-i", fileName,
+                "-vn", "-map", "0:a:0",
+                "-af", audioFilter,
+                "-ar", "16000",
+                "-ac", "1",
+                "-y", tempWav
             ])
             .WithValidation(CommandResultValidation.None)
             .ExecuteBufferedAsync(cancellationToken);
 
-        if (result.ExitCode == 0 && File.Exists(expectedOutputFile))
+        if (ffmpegResult.ExitCode != 0)
         {
-            File.Move(expectedOutputFile, srtFileName);
+            _logger.LogError("Failed to extract audio. {Error}", ffmpegResult.StandardError);
+            return false;
+        }
+
+        // whisper-cli writes to {prefix}.srt
+        string srtPrefix = Path.ChangeExtension(tempWav, null);
+
+        BufferedCommandResult whisperResult = await Cli.Wrap("whisper-cli")
+            .WithArguments([
+                "-m", model,
+                "-f", tempWav,
+                "--output-srt",
+                "--output-file", srtPrefix
+            ])
+            .WithValidation(CommandResultValidation.None)
+            .ExecuteBufferedAsync(cancellationToken);
+
+        File.Delete(tempWav);
+
+        string generatedSrt = srtPrefix + ".srt";
+        if (whisperResult.ExitCode == 0 && File.Exists(generatedSrt))
+        {
+            File.Move(generatedSrt, srtFileName);
             return true;
         }
 
-        _logger.LogError("Failed to generate subtitles. {Error}", result.StandardError);
+        _logger.LogError("Failed to generate subtitles. {Error}", whisperResult.StandardError);
         return false;
     }
 
